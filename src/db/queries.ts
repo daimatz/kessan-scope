@@ -4,6 +4,15 @@ export function generateId(): string {
   return crypto.randomUUID();
 }
 
+// パスワードハッシュ生成
+async function hashPassword(password: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 // User queries
 export async function getUserByGoogleId(db: D1Database, googleId: string): Promise<User | null> {
   const result = await db.prepare(
@@ -32,6 +41,43 @@ export async function createUser(db: D1Database, data: {
   const user = await getUserById(db, id);
   if (!user) throw new Error('Failed to create user');
   return user;
+}
+
+export async function getUserByEmail(db: D1Database, email: string): Promise<User | null> {
+  const result = await db.prepare(
+    'SELECT * FROM users WHERE email = ?'
+  ).bind(email).first<User>();
+  return result;
+}
+
+export async function createUserWithPassword(db: D1Database, data: {
+  email: string;
+  password: string;
+  name: string | null;
+}): Promise<User> {
+  const id = generateId();
+  const passwordHash = await hashPassword(data.password);
+  
+  await db.prepare(
+    'INSERT INTO users (id, email, name, password_hash) VALUES (?, ?, ?, ?)'
+  ).bind(id, data.email, data.name, passwordHash).run();
+  
+  const user = await getUserById(db, id);
+  if (!user) throw new Error('Failed to create user');
+  return user;
+}
+
+export async function verifyPassword(db: D1Database, userId: string, password: string): Promise<boolean> {
+  const result = await db.prepare(
+    'SELECT password_hash FROM users WHERE id = ?'
+  ).bind(userId).first<{ password_hash: string | null }>();
+  
+  if (!result || !result.password_hash) {
+    return false;
+  }
+  
+  const inputHash = await hashPassword(password);
+  return result.password_hash === inputHash;
 }
 
 export async function updateUserSettings(db: D1Database, userId: string, data: {

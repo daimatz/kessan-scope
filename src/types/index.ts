@@ -13,9 +13,10 @@ export interface Env {
 // Database Models
 export interface User {
   id: string;
-  google_id: string;
+  google_id: string | null;
   email: string;
   name: string | null;
+  password_hash: string | null;
   openai_model: string;
   created_at: string;
   updated_at: string;

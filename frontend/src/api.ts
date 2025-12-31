@@ -23,6 +23,16 @@ export const authAPI = {
   getMe: () => fetchAPI<{ user: User | null }>('/api/auth/me'),
   logout: () => fetchAPI<{ success: boolean }>('/api/auth/logout', { method: 'POST' }),
   getGoogleAuthUrl: () => `${API_BASE}/api/auth/google`,
+  register: (data: { email: string; password: string; name?: string }) =>
+    fetchAPI<{ user: User }>('/api/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  login: (data: { email: string; password: string }) =>
+    fetchAPI<{ user: User }>('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
 };
 
 // Watchlist API

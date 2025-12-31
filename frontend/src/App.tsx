@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { authAPI } from './api';
 import Dashboard from './pages/Dashboard';
 import Watchlist from './pages/Watchlist';
@@ -11,10 +12,51 @@ import './App.css';
 const queryClient = new QueryClient();
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
+  const queryClient = useQueryClient();
+  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
+  const [error, setError] = useState('');
+
   const { data, isLoading } = useQuery({
     queryKey: ['auth'],
     queryFn: authAPI.getMe,
   });
+
+  const loginMutation = useMutation({
+    mutationFn: authAPI.login,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['auth'] });
+      setError('');
+    },
+    onError: (err: Error) => {
+      setError(err.message);
+    },
+  });
+
+  const registerMutation = useMutation({
+    mutationFn: authAPI.register,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['auth'] });
+      setError('');
+    },
+    onError: (err: Error) => {
+      setError(err.message);
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    if (mode === 'login') {
+      loginMutation.mutate({ email, password });
+    } else {
+      registerMutation.mutate({ email, password, name: name || undefined });
+    }
+  };
+
+  const isPending = loginMutation.isPending || registerMutation.isPending;
 
   if (isLoading) {
     return (
@@ -30,7 +72,60 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
       <div className="login-container">
         <div className="login-card">
           <h1>📈 Stock Watcher</h1>
-          <p>日本株の決算を自動でウォッチし、LLMで分析</p>
+          <p className="login-description">日本株の決算を自動でウォッチし、LLMで分析</p>
+          
+          <div className="auth-tabs">
+            <button
+              className={`auth-tab ${mode === 'login' ? 'active' : ''}`}
+              onClick={() => { setMode('login'); setError(''); }}
+            >
+              ログイン
+            </button>
+            <button
+              className={`auth-tab ${mode === 'register' ? 'active' : ''}`}
+              onClick={() => { setMode('register'); setError(''); }}
+            >
+              新規登録
+            </button>
+          </div>
+
+          <form onSubmit={handleSubmit} className="auth-form">
+            {mode === 'register' && (
+              <input
+                type="text"
+                placeholder="名前（任意）"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                disabled={isPending}
+              />
+            )}
+            <input
+              type="email"
+              placeholder="メールアドレス"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              disabled={isPending}
+            />
+            <input
+              type="password"
+              placeholder="パスワード（8文字以上）"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              minLength={8}
+              disabled={isPending}
+            />
+            {error && <div className="auth-error">{error}</div>}
+            <button type="submit" className="auth-submit" disabled={isPending}>
+              {isPending ? '処理中...' : mode === 'login' ? 'ログイン' : '登録'}
+            </button>
+          </form>
+
+          <div className="auth-divider">
+            <span>または</span>
+          </div>
+
           <a href={authAPI.getGoogleAuthUrl()} className="google-login-btn">
             <svg viewBox="0 0 24 24" width="18" height="18">
               <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>

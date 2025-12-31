@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { setCookie, getCookie, deleteCookie } from 'hono/cookie';
 import type { Env, GoogleUserInfo, JWTPayload } from '../types';
-import { getUserByGoogleId, createUser, getUserById } from '../db/queries';
+import { getUserByGoogleId, createUser, getUserById, getUserByEmail, createUserWithPassword, verifyPassword } from '../db/queries';
 
 const auth = new Hono<{ Bindings: Env }>();
 
@@ -192,6 +192,109 @@ auth.get('/me', async (c) => {
 auth.post('/logout', async (c) => {
   deleteCookie(c, 'auth_token');
   return c.json({ success: true });
+});
+
+// メール/パスワードでユーザー登録
+auth.post('/register', async (c) => {
+  const body = await c.req.json<{ email: string; password: string; name?: string }>();
+  
+  if (!body.email || !body.password) {
+    return c.json({ error: 'メールアドレスとパスワードは必須です' }, 400);
+  }
+  
+  // メール形式の簡易バリデーション
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email)) {
+    return c.json({ error: '無効なメールアドレス形式です' }, 400);
+  }
+  
+  // パスワードの長さチェック
+  if (body.password.length < 8) {
+    return c.json({ error: 'パスワードは8文字以上です' }, 400);
+  }
+  
+  // 既存ユーザーのチェック
+  const existingUser = await getUserByEmail(c.env.DB, body.email);
+  if (existingUser) {
+    return c.json({ error: 'このメールアドレスは既に登録されています' }, 409);
+  }
+  
+  // ユーザー作成
+  const user = await createUserWithPassword(c.env.DB, {
+    email: body.email,
+    password: body.password,
+    name: body.name || null,
+  });
+  
+  // JWTを作成
+  const jwt = await createJWT(
+    {
+      sub: user.id,
+      email: user.email,
+      exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 7,
+    },
+    c.env.JWT_SECRET
+  );
+  
+  setCookie(c, 'auth_token', jwt, {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'Lax',
+    maxAge: 60 * 60 * 24 * 7,
+  });
+  
+  return c.json({
+    user: {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+    },
+  }, 201);
+});
+
+// メール/パスワードでログイン
+auth.post('/login', async (c) => {
+  const body = await c.req.json<{ email: string; password: string }>();
+  
+  if (!body.email || !body.password) {
+    return c.json({ error: 'メールアドレスとパスワードは必須です' }, 400);
+  }
+  
+  // ユーザーを取得
+  const user = await getUserByEmail(c.env.DB, body.email);
+  if (!user) {
+    return c.json({ error: 'メールアドレスまたはパスワードが正しくありません' }, 401);
+  }
+  
+  // パスワード検証
+  const isValid = await verifyPassword(c.env.DB, user.id, body.password);
+  if (!isValid) {
+    return c.json({ error: 'メールアドレスまたはパスワードが正しくありません' }, 401);
+  }
+  
+  // JWTを作成
+  const jwt = await createJWT(
+    {
+      sub: user.id,
+      email: user.email,
+      exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 7,
+    },
+    c.env.JWT_SECRET
+  );
+  
+  setCookie(c, 'auth_token', jwt, {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'Lax',
+    maxAge: 60 * 60 * 24 * 7,
+  });
+  
+  return c.json({
+    user: {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+    },
+  });
 });
 
 // 開発用: テストユーザーでログイン

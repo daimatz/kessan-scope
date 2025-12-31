@@ -1,9 +1,10 @@
 -- Users table
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
-  google_id TEXT UNIQUE NOT NULL,
+  google_id TEXT UNIQUE,
   email TEXT UNIQUE NOT NULL,
   name TEXT,
+  password_hash TEXT,
   openai_model TEXT DEFAULT 'gpt-4o',
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
