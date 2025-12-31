@@ -194,6 +194,38 @@ auth.post('/logout', async (c) => {
   return c.json({ success: true });
 });
 
+// 開発用: テストユーザーでログイン
+auth.get('/dev-login', async (c) => {
+  // テストユーザーを検索または作成
+  let user = await getUserByGoogleId(c.env.DB, 'dev-user-123');
+  if (!user) {
+    user = await createUser(c.env.DB, {
+      google_id: 'dev-user-123',
+      email: 'dev@example.com',
+      name: '開発ユーザー',
+    });
+  }
+  
+  // JWTを作成
+  const jwt = await createJWT(
+    {
+      sub: user.id,
+      email: user.email,
+      exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 7,
+    },
+    c.env.JWT_SECRET
+  );
+  
+  setCookie(c, 'auth_token', jwt, {
+    httpOnly: true,
+    secure: false, // 開発環境用
+    sameSite: 'Lax',
+    maxAge: 60 * 60 * 24 * 7,
+  });
+  
+  return c.redirect(c.env.FRONTEND_URL);
+});
+
 // JWT検証ミドルウェアをエクスポート
 export { verifyJWT };
 export default auth;
