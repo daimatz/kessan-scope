@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { setCookie, getCookie, deleteCookie } from 'hono/cookie';
 import type { Env, GoogleUserInfo, JWTPayload } from '../types';
-import { getUserByGoogleId, createUser, getUserById, getUserByEmail, createUserWithPassword, verifyPassword } from '../db/queries';
+import { getUserByGoogleId, createUser, getUserById, getUserByEmail, createUserWithPassword, verifyPassword, setUserPassword, linkGoogleAccount } from '../db/queries';
 
 const auth = new Hono<{ Bindings: Env }>();
 
@@ -132,11 +132,20 @@ auth.get('/callback', async (c) => {
   // ユーザーを検索または作成
   let user = await getUserByGoogleId(c.env.DB, googleUser.id);
   if (!user) {
-    user = await createUser(c.env.DB, {
-      google_id: googleUser.id,
-      email: googleUser.email,
-      name: googleUser.name,
-    });
+    // Google IDで見つからない場合、メールで検索
+    const existingUserByEmail = await getUserByEmail(c.env.DB, googleUser.email);
+    if (existingUserByEmail) {
+      // 既存ユーザーにGoogleアカウントを紐付け
+      await linkGoogleAccount(c.env.DB, existingUserByEmail.id, googleUser.id);
+      user = { ...existingUserByEmail, google_id: googleUser.id };
+    } else {
+      // 新規ユーザー作成
+      user = await createUser(c.env.DB, {
+        google_id: googleUser.id,
+        email: googleUser.email,
+        name: googleUser.name,
+      });
+    }
   }
   
   // JWTを作成
@@ -214,16 +223,24 @@ auth.post('/register', async (c) => {
   
   // 既存ユーザーのチェック
   const existingUser = await getUserByEmail(c.env.DB, body.email);
-  if (existingUser) {
-    return c.json({ error: 'このメールアドレスは既に登録されています' }, 409);
-  }
   
-  // ユーザー作成
-  const user = await createUserWithPassword(c.env.DB, {
-    email: body.email,
-    password: body.password,
-    name: body.name || null,
-  });
+  let user;
+  if (existingUser) {
+    // 既存ユーザーがいる場合、パスワードが設定されているか確認
+    if (existingUser.password_hash) {
+      return c.json({ error: 'このメールアドレスは既に登録されています' }, 409);
+    }
+    // Google Authで作成されたアカウントにパスワードを追加
+    await setUserPassword(c.env.DB, existingUser.id, body.password);
+    user = existingUser;
+  } else {
+    // 新規ユーザー作成
+    user = await createUserWithPassword(c.env.DB, {
+      email: body.email,
+      password: body.password,
+      name: body.name || null,
+    });
+  }
   
   // JWTを作成
   const jwt = await createJWT(

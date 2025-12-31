@@ -80,6 +80,19 @@ export async function verifyPassword(db: D1Database, userId: string, password: s
   return result.password_hash === inputHash;
 }
 
+export async function setUserPassword(db: D1Database, userId: string, password: string): Promise<void> {
+  const passwordHash = await hashPassword(password);
+  await db.prepare(
+    'UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+  ).bind(passwordHash, userId).run();
+}
+
+export async function linkGoogleAccount(db: D1Database, userId: string, googleId: string): Promise<void> {
+  await db.prepare(
+    'UPDATE users SET google_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+  ).bind(googleId, userId).run();
+}
+
 export async function updateUserSettings(db: D1Database, userId: string, data: {
   openai_model?: string;
   name?: string;
