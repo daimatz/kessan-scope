@@ -109,19 +109,25 @@ input:focus, textarea:focus, select:focus {
 
 /* Login */
 .login-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 100vh;
   background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
 }
 
 .login-card {
   background: white;
-  padding: 48px;
+  padding: 48px 64px;
   border-radius: 16px;
   text-align: center;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  max-width: 480px;
+  width: 90%;
 }
 
 .login-card h1 {
@@ -243,13 +249,14 @@ input:focus, textarea:focus, select:focus {
 .main-content {
   flex: 1;
   margin-left: 240px;
-  padding: 32px;
-  max-width: 1200px;
+  padding: 32px 48px;
+  min-height: 100vh;
 }
 
 /* Page */
 .page {
   animation: fadeIn 0.3s ease;
+  max-width: 1200px;
 }
 
 @keyframes fadeIn {
@@ -258,15 +265,16 @@ input:focus, textarea:focus, select:focus {
 }
 
 .page h1 {
-  font-size: 28px;
-  margin-bottom: 24px;
+  font-size: 32px;
+  margin-bottom: 32px;
+  font-weight: 700;
 }
 
 .section {
   background: white;
   border-radius: 12px;
-  padding: 24px;
-  margin-bottom: 24px;
+  padding: 28px 32px;
+  margin-bottom: 28px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
@@ -314,16 +322,16 @@ input:focus, textarea:focus, select:focus {
 /* Earnings Grid */
 .earnings-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 20px;
 }
 
 .earnings-card {
   display: block;
   background: var(--gray-50);
   border: 1px solid var(--gray-200);
-  border-radius: 8px;
-  padding: 16px;
+  border-radius: 12px;
+  padding: 20px 24px;
   transition: all 0.2s;
 }
 
@@ -372,16 +380,17 @@ input:focus, textarea:focus, select:focus {
 .add-form {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
+  max-width: 700px;
 }
 
 .form-row {
   display: flex;
-  gap: 12px;
+  gap: 16px;
 }
 
 .input-code {
-  width: 120px;
+  width: 160px;
   flex-shrink: 0;
 }
 
@@ -391,20 +400,21 @@ input:focus, textarea:focus, select:focus {
 
 .input-prompt {
   resize: vertical;
+  min-height: 80px;
 }
 
 /* Watchlist */
 .watchlist-items {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  gap: 20px;
 }
 
 .watchlist-item {
   background: var(--gray-50);
   border: 1px solid var(--gray-200);
-  border-radius: 8px;
-  padding: 16px;
+  border-radius: 12px;
+  padding: 20px 24px;
 }
 
 .item-header {
@@ -456,19 +466,24 @@ input:focus, textarea:focus, select:focus {
 }
 
 /* Earnings Detail */
+.earnings-detail {
+  max-width: 1400px;
+}
+
 .detail-header {
-  margin-bottom: 24px;
+  margin-bottom: 32px;
 }
 
 .detail-header h1 {
-  margin-bottom: 8px;
+  margin-bottom: 12px;
+  font-size: 36px;
 }
 
 .meta {
   display: flex;
-  gap: 16px;
+  gap: 24px;
   color: var(--gray-500);
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .notified {
@@ -476,39 +491,43 @@ input:focus, textarea:focus, select:focus {
 }
 
 .overview {
-  font-size: 16px;
-  line-height: 1.8;
-  margin-bottom: 24px;
+  font-size: 17px;
+  line-height: 1.9;
+  margin-bottom: 28px;
+  color: var(--gray-700);
 }
 
 .metrics-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
 }
 
 .metric {
   background: var(--gray-50);
-  padding: 16px;
-  border-radius: 8px;
+  padding: 20px;
+  border-radius: 12px;
   text-align: center;
 }
 
 .metric-label {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--gray-500);
-  margin-bottom: 4px;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .metric-value {
-  font-size: 18px;
-  font-weight: 600;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--gray-900);
 }
 
 .highlights-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 24px;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 28px;
 }
 
 .highlight-section {
@@ -543,21 +562,26 @@ input:focus, textarea:focus, select:focus {
 }
 
 /* Chat */
+.chat-section {
+  max-width: 900px;
+}
+
 .chat-container {
   border: 1px solid var(--gray-200);
-  border-radius: 8px;
+  border-radius: 12px;
   overflow: hidden;
 }
 
 .chat-messages {
-  max-height: 400px;
+  min-height: 200px;
+  max-height: 500px;
   overflow-y: auto;
-  padding: 16px;
+  padding: 24px;
   background: var(--gray-50);
 }
 
 .chat-message {
-  margin-bottom: 16px;
+  margin-bottom: 20px;
 }
 
 .chat-message.user {
@@ -567,15 +591,17 @@ input:focus, textarea:focus, select:focus {
 .message-role {
   font-size: 12px;
   color: var(--gray-500);
-  margin-bottom: 4px;
+  margin-bottom: 6px;
+  font-weight: 500;
 }
 
 .message-content {
   display: inline-block;
-  padding: 12px 16px;
-  border-radius: 12px;
-  max-width: 80%;
+  padding: 14px 18px;
+  border-radius: 16px;
+  max-width: 70%;
   text-align: left;
+  line-height: 1.6;
 }
 
 .chat-message.user .message-content {
@@ -590,75 +616,81 @@ input:focus, textarea:focus, select:focus {
 
 .chat-form {
   display: flex;
-  gap: 8px;
-  padding: 16px;
+  gap: 12px;
+  padding: 20px 24px;
   background: white;
   border-top: 1px solid var(--gray-200);
 }
 
 .chat-form input {
   flex: 1;
+  font-size: 15px;
 }
 
 /* Settings */
 .info-grid {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
 
 .info-row {
   display: flex;
-  gap: 16px;
+  gap: 24px;
+  align-items: center;
 }
 
 .info-label {
-  width: 150px;
+  width: 180px;
   color: var(--gray-500);
+  font-size: 15px;
 }
 
 .info-value {
   font-weight: 500;
+  font-size: 15px;
 }
 
 .settings-form {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  max-width: 400px;
+  gap: 20px;
+  max-width: 500px;
 }
 
 .form-group {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .form-group label {
   font-weight: 500;
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .model-descriptions {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
 }
 
 .model-desc {
-  padding: 16px;
+  padding: 20px;
   background: var(--gray-50);
-  border-radius: 8px;
+  border-radius: 12px;
 }
 
 .model-desc strong {
   display: block;
-  margin-bottom: 4px;
+  margin-bottom: 8px;
+  font-size: 16px;
 }
 
 .model-desc p {
   color: var(--gray-500);
   font-size: 14px;
+  line-height: 1.5;
 }
 
 .empty {
@@ -667,6 +699,24 @@ input:focus, textarea:focus, select:focus {
 }
 
 /* Responsive */
+@media (max-width: 1024px) {
+  .main-content {
+    padding: 24px 32px;
+  }
+
+  .metrics-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .highlights-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .watchlist-items {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 768px) {
   .sidebar {
     width: 60px;
@@ -682,6 +732,14 @@ input:focus, textarea:focus, select:focus {
     padding: 16px;
   }
 
+  .page h1 {
+    font-size: 24px;
+  }
+
+  .detail-header h1 {
+    font-size: 24px;
+  }
+
   .form-row {
     flex-direction: column;
   }
@@ -690,7 +748,15 @@ input:focus, textarea:focus, select:focus {
     width: 100%;
   }
 
-  .highlights-grid {
+  .metrics-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .earnings-grid {
     grid-template-columns: 1fr;
+  }
+
+  .message-content {
+    max-width: 90%;
   }
 }
