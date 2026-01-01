@@ -206,7 +206,7 @@ auth.post('/logout', async (c) => {
 
 // メール/パスワードでユーザー登録
 auth.post('/register', async (c) => {
-  const body = await c.req.json<{ email: string; password: string; name?: string }>();
+  const body = await c.req.json<{ email: string; password: string; name?: string; confirmLinkPassword?: boolean }>();
 
   if (!body.email || !body.password) {
     return c.json({ error: 'メールアドレスとパスワードは必須です' }, 400);
@@ -234,7 +234,17 @@ auth.post('/register', async (c) => {
       }
       return c.json({ error: 'このメールアドレスは既に登録されています' }, 409);
     }
-    // Google Authで作成されたアカウントにパスワードを追加（既にメール確認済み）
+
+    // Google Authで作成されたアカウント - 確認が必要
+    if (!body.confirmLinkPassword) {
+      return c.json({
+        existingGoogleAccount: true,
+        email: existingUser.email,
+        message: 'Googleログインで登録済みのアカウントです。パスワードを設定しますか？',
+      }, 200);
+    }
+
+    // 確認済み - パスワードを追加
     await setUserPassword(c.env.DB, existingUser.id, body.password);
 
     // JWTを作成（Google Authで既に確認済みなのでログイン可能）
@@ -260,6 +270,7 @@ auth.post('/register', async (c) => {
         email: existingUser.email,
         name: existingUser.name,
       },
+      passwordLinked: true,
     }, 201);
   }
 

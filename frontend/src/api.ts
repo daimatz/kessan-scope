@@ -37,8 +37,8 @@ export const authAPI = {
   getMe: () => fetchAPI<{ user: User | null }>('/api/auth/me'),
   logout: () => fetchAPI<{ success: boolean }>('/api/auth/logout', { method: 'POST' }),
   getGoogleAuthUrl: () => `${API_BASE}/api/auth/google`,
-  register: (data: { email: string; password: string; name?: string }) =>
-    fetchAPI<{ user?: User; message?: string; requiresVerification?: boolean }>('/api/auth/register', {
+  register: (data: { email: string; password: string; name?: string; confirmLinkPassword?: boolean }) =>
+    fetchAPI<{ user?: User; message?: string; requiresVerification?: boolean; existingGoogleAccount?: boolean; email?: string; passwordLinked?: boolean }>('/api/auth/register', {
       method: 'POST',
       body: JSON.stringify(data),
     }),

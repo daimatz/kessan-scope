@@ -229,6 +229,65 @@ input:focus, textarea:focus, select:focus {
   border-radius: 6px;
 }
 
+.link-password-confirm {
+  text-align: center;
+  padding: 16px;
+  background: #eff6ff;
+  border-radius: 8px;
+  border: 1px solid #bfdbfe;
+}
+
+.link-password-confirm p {
+  margin: 0 0 12px;
+  color: #1e40af;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.link-password-buttons {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.link-password-yes {
+  padding: 8px 16px;
+  background: #1e40af;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.link-password-yes:hover {
+  background: #1e3a8a;
+}
+
+.link-password-yes:disabled {
+  background: #93c5fd;
+  cursor: not-allowed;
+}
+
+.link-password-no {
+  padding: 8px 16px;
+  background: white;
+  color: #374151;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.link-password-no:hover {
+  background: #f9fafb;
+}
+
+.link-password-no:disabled {
+  color: #9ca3af;
+  cursor: not-allowed;
+}
+
 .auth-submit {
   padding: 12px 24px;
   font-size: 15px;

@@ -20,6 +20,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [verificationEmail, setVerificationEmail] = useState<string | null>(null);
+  const [showLinkPasswordConfirm, setShowLinkPasswordConfirm] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ['auth'],
@@ -46,18 +47,25 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   const registerMutation = useMutation({
     mutationFn: authAPI.register,
     onSuccess: (data) => {
-      if (data.requiresVerification) {
+      if (data.existingGoogleAccount) {
+        setShowLinkPasswordConfirm(true);
+        setError('');
+        setSuccessMessage('');
+      } else if (data.requiresVerification) {
         setSuccessMessage('確認メールを送信しました。24時間以内にメールをご確認ください。');
         setError('');
+        setShowLinkPasswordConfirm(false);
       } else {
         queryClient.invalidateQueries({ queryKey: ['auth'] });
         setError('');
         setSuccessMessage('');
+        setShowLinkPasswordConfirm(false);
       }
     },
     onError: (err: Error) => {
       setError(err.message);
       setSuccessMessage('');
+      setShowLinkPasswordConfirm(false);
       if (err instanceof APIError && err.requiresVerification && err.email) {
         setVerificationEmail(err.email);
       } else {
@@ -109,13 +117,13 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
           <div className="auth-tabs">
             <button
               className={`auth-tab ${mode === 'login' ? 'active' : ''}`}
-              onClick={() => { setMode('login'); setError(''); setSuccessMessage(''); setVerificationEmail(null); }}
+              onClick={() => { setMode('login'); setError(''); setSuccessMessage(''); setVerificationEmail(null); setShowLinkPasswordConfirm(false); }}
             >
               ログイン
             </button>
             <button
               className={`auth-tab ${mode === 'register' ? 'active' : ''}`}
-              onClick={() => { setMode('register'); setError(''); setSuccessMessage(''); setVerificationEmail(null); }}
+              onClick={() => { setMode('register'); setError(''); setSuccessMessage(''); setVerificationEmail(null); setShowLinkPasswordConfirm(false); }}
             >
               新規登録
             </button>
@@ -164,9 +172,36 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
               </div>
             )}
             {successMessage && <div className="auth-success">{successMessage}</div>}
-            <button type="submit" className="auth-submit" disabled={isPending || !!successMessage}>
-              {isPending ? '処理中...' : mode === 'login' ? 'ログイン' : '登録'}
-            </button>
+            {showLinkPasswordConfirm && (
+              <div className="link-password-confirm">
+                <p>Googleログインで登録済みのアカウントです。<br />パスワードを設定しますか？</p>
+                <div className="link-password-buttons">
+                  <button
+                    type="button"
+                    className="link-password-yes"
+                    onClick={() => {
+                      registerMutation.mutate({ email, password, name: name || undefined, confirmLinkPassword: true });
+                    }}
+                    disabled={isPending}
+                  >
+                    はい、設定する
+                  </button>
+                  <button
+                    type="button"
+                    className="link-password-no"
+                    onClick={() => setShowLinkPasswordConfirm(false)}
+                    disabled={isPending}
+                  >
+                    キャンセル
+                  </button>
+                </div>
+              </div>
+            )}
+            {!showLinkPasswordConfirm && (
+              <button type="submit" className="auth-submit" disabled={isPending || !!successMessage}>
+                {isPending ? '処理中...' : mode === 'login' ? 'ログイン' : '登録'}
+              </button>
+            )}
           </form>
 
           <div className="auth-divider">
