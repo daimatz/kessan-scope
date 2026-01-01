@@ -35,9 +35,9 @@ export async function createUser(db: D1Database, data: {
 }): Promise<User> {
   const id = generateId();
   await db.prepare(
-    'INSERT INTO users (id, google_id, email, name) VALUES (?, ?, ?, ?)'
+    'INSERT INTO users (id, google_id, email, name, email_verified) VALUES (?, ?, ?, ?, 1)'
   ).bind(id, data.google_id, data.email, data.name).run();
-  
+
   const user = await getUserById(db, id);
   if (!user) throw new Error('Failed to create user');
   return user;
@@ -50,21 +50,60 @@ export async function getUserByEmail(db: D1Database, email: string): Promise<Use
   return result;
 }
 
+export function generateVerificationToken(): string {
+  return crypto.randomUUID();
+}
+
 export async function createUserWithPassword(db: D1Database, data: {
   email: string;
   password: string;
   name: string | null;
-}): Promise<User> {
+}): Promise<{ user: User; verificationToken: string }> {
   const id = generateId();
   const passwordHash = await hashPassword(data.password);
-  
+  const verificationToken = generateVerificationToken();
+  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24時間後
+
   await db.prepare(
-    'INSERT INTO users (id, email, name, password_hash) VALUES (?, ?, ?, ?)'
-  ).bind(id, data.email, data.name, passwordHash).run();
-  
+    `INSERT INTO users (id, email, name, password_hash, email_verified, email_verification_token, email_verification_expires_at)
+     VALUES (?, ?, ?, ?, 0, ?, ?)`
+  ).bind(id, data.email, data.name, passwordHash, verificationToken, expiresAt).run();
+
   const user = await getUserById(db, id);
   if (!user) throw new Error('Failed to create user');
-  return user;
+  return { user, verificationToken };
+}
+
+export async function verifyEmailToken(db: D1Database, token: string): Promise<User | null> {
+  const user = await db.prepare(
+    'SELECT * FROM users WHERE email_verification_token = ?'
+  ).bind(token).first<User>();
+
+  if (!user) return null;
+
+  // トークンの有効期限をチェック
+  if (user.email_verification_expires_at) {
+    const expiresAt = new Date(user.email_verification_expires_at);
+    if (expiresAt < new Date()) return null;
+  }
+
+  // メール確認済みに更新
+  await db.prepare(
+    `UPDATE users SET email_verified = 1, email_verification_token = NULL, email_verification_expires_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+  ).bind(user.id).run();
+
+  return await getUserById(db, user.id);
+}
+
+export async function regenerateVerificationToken(db: D1Database, userId: string): Promise<string> {
+  const verificationToken = generateVerificationToken();
+  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+  await db.prepare(
+    `UPDATE users SET email_verification_token = ?, email_verification_expires_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+  ).bind(verificationToken, expiresAt, userId).run();
+
+  return verificationToken;
 }
 
 export async function verifyPassword(db: D1Database, userId: string, password: string): Promise<boolean> {

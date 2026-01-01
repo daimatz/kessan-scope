@@ -18,6 +18,9 @@ export interface User {
   name: string | null;
   password_hash: string | null;
   openai_model: string;
+  email_verified: number;
+  email_verification_token: string | null;
+  email_verification_expires_at: string | null;
   created_at: string;
   updated_at: string;
 }
