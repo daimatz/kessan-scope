@@ -15,8 +15,6 @@ export async function enqueueHistoricalImport(
   const message: ImportQueueMessage = {
     type: 'import_historical_earnings',
     stockCode,
-    startDate: '', // TDnetでは不要
-    endDate: '',
   };
 
   await queue.send(message);

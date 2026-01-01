@@ -2,7 +2,6 @@
 export interface Env {
   DB: D1Database;
   IMPORT_QUEUE: Queue<ImportQueueMessage>;
-  EDINET_API_KEY: string;
   OPENAI_API_KEY: string;
   MAILERSEND_API_KEY: string;
   MAILERSEND_FROM_EMAIL: string;
@@ -17,8 +16,6 @@ export interface Env {
 export interface ImportQueueMessage {
   type: 'import_historical_earnings';
   stockCode: string;
-  startDate: string; // YYYY-MM-DD
-  endDate: string;   // YYYY-MM-DD
 }
 
 // Database Models

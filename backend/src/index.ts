@@ -10,6 +10,7 @@ import users from './routes/users';
 import stocks from './routes/stocks';
 import { updateStockList } from './services/stockUpdater';
 import { processImportBatch } from './services/historicalImport';
+import { checkNewReleases } from './services/newReleasesChecker';
 
 const app = new Hono<{ Bindings: Env; Variables: { userId: string } }>();
 
@@ -84,14 +85,24 @@ app.onError((err, c) => {
   return c.json({ error: 'Internal server error' }, 500);
 });
 
-// Scheduled handler for stock list updates
+// Scheduled handler for stock list updates and new releases check
 const scheduled: ExportedHandlerScheduledHandler<Env> = async (event, env, ctx) => {
-  console.log('Starting scheduled stock list update...');
+  console.log('Starting scheduled tasks...');
+
+  // 銘柄リスト更新
   try {
     const result = await updateStockList(env);
     console.log(`Stock list updated: ${result.updated}/${result.total} stocks`);
   } catch (error) {
     console.error('Failed to update stock list:', error);
+  }
+
+  // TDnet新着決算チェック
+  try {
+    const result = await checkNewReleases(env);
+    console.log(`New releases check: ${result.imported} imported from ${result.checked} stocks`);
+  } catch (error) {
+    console.error('Failed to check new releases:', error);
   }
 };
 

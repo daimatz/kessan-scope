@@ -14,7 +14,6 @@ FRONTEND_URL = "http://localhost:5173"
 # ENVIRONMENT = "production"  # 本番デプロイ時に設定（/internal/* を無効化）
 
 # Secrets (wrangler secret put で設定)
-# EDINET_API_KEY
 # OPENAI_API_KEY
 # MAILERSEND_API_KEY
 # GOOGLE_CLIENT_ID
@@ -23,7 +22,7 @@ FRONTEND_URL = "http://localhost:5173"
 
 # Cron Triggers
 [triggers]
-crons = ["0 0 * * *"]  # 毎日 0:00 UTC (9:00 JST) に銘柄リスト更新
+crons = ["0 0 * * *", "0 9 * * *"]  # 9:00 JST と 18:00 JST に銘柄リスト更新 & 新着チェック
 
 # Queues
 [[queues.producers]]
