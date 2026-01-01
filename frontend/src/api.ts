@@ -1,5 +1,16 @@
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
+export class APIError extends Error {
+  requiresVerification?: boolean;
+  email?: string;
+
+  constructor(message: string, data?: { requiresVerification?: boolean; email?: string }) {
+    super(message);
+    this.requiresVerification = data?.requiresVerification;
+    this.email = data?.email;
+  }
+}
+
 async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     ...options,
@@ -11,8 +22,11 @@ async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Request failed' }));
-    throw new Error(error.error || 'Request failed');
+    const errorData = await response.json().catch(() => ({ error: 'Request failed' }));
+    throw new APIError(errorData.error || 'Request failed', {
+      requiresVerification: errorData.requiresVerification,
+      email: errorData.email,
+    });
   }
 
   return response.json();
@@ -32,6 +46,11 @@ export const authAPI = {
     fetchAPI<{ user: User }>('/api/auth/login', {
       method: 'POST',
       body: JSON.stringify(data),
+    }),
+  resendVerification: (email: string) =>
+    fetchAPI<{ message: string }>('/api/auth/resend-verification', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
     }),
 };
 

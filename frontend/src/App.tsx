@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { authAPI } from './api';
+import { authAPI, APIError } from './api';
 import Dashboard from './pages/Dashboard';
 import Watchlist from './pages/Watchlist';
 import EarningsDetail from './pages/EarningsDetail';
@@ -19,6 +19,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   const [name, setName] = useState('');
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [verificationEmail, setVerificationEmail] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['auth'],
@@ -30,9 +31,15 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['auth'] });
       setError('');
+      setVerificationEmail(null);
     },
     onError: (err: Error) => {
       setError(err.message);
+      if (err instanceof APIError && err.requiresVerification && err.email) {
+        setVerificationEmail(err.email);
+      } else {
+        setVerificationEmail(null);
+      }
     },
   });
 
@@ -51,6 +58,23 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     onError: (err: Error) => {
       setError(err.message);
       setSuccessMessage('');
+      if (err instanceof APIError && err.requiresVerification && err.email) {
+        setVerificationEmail(err.email);
+      } else {
+        setVerificationEmail(null);
+      }
+    },
+  });
+
+  const resendMutation = useMutation({
+    mutationFn: authAPI.resendVerification,
+    onSuccess: () => {
+      setSuccessMessage('確認メールを再送しました。24時間以内にメールをご確認ください。');
+      setError('');
+      setVerificationEmail(null);
+    },
+    onError: (err: Error) => {
+      setError(err.message);
     },
   });
 
@@ -64,7 +88,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const isPending = loginMutation.isPending || registerMutation.isPending;
+  const isPending = loginMutation.isPending || registerMutation.isPending || resendMutation.isPending;
 
   if (isLoading) {
     return (
@@ -85,13 +109,13 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
           <div className="auth-tabs">
             <button
               className={`auth-tab ${mode === 'login' ? 'active' : ''}`}
-              onClick={() => { setMode('login'); setError(''); setSuccessMessage(''); }}
+              onClick={() => { setMode('login'); setError(''); setSuccessMessage(''); setVerificationEmail(null); }}
             >
               ログイン
             </button>
             <button
               className={`auth-tab ${mode === 'register' ? 'active' : ''}`}
-              onClick={() => { setMode('register'); setError(''); setSuccessMessage(''); }}
+              onClick={() => { setMode('register'); setError(''); setSuccessMessage(''); setVerificationEmail(null); }}
             >
               新規登録
             </button>
@@ -124,7 +148,21 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
               minLength={8}
               disabled={isPending}
             />
-            {error && <div className="auth-error">{error}</div>}
+            {error && (
+              <div className="auth-error">
+                {error}
+                {verificationEmail && (
+                  <button
+                    type="button"
+                    className="resend-link"
+                    onClick={() => resendMutation.mutate(verificationEmail)}
+                    disabled={resendMutation.isPending}
+                  >
+                    {resendMutation.isPending ? '送信中...' : '確認メールを再送する'}
+                  </button>
+                )}
+              </div>
+            )}
             {successMessage && <div className="auth-success">{successMessage}</div>}
             <button type="submit" className="auth-submit" disabled={isPending || !!successMessage}>
               {isPending ? '処理中...' : mode === 'login' ? 'ログイン' : '登録'}

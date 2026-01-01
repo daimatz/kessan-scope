@@ -199,6 +199,27 @@ input:focus, textarea:focus, select:focus {
   border-radius: 6px;
 }
 
+.resend-link {
+  display: block;
+  margin-top: 8px;
+  padding: 0;
+  background: none;
+  border: none;
+  color: #1e40af;
+  font-size: 14px;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.resend-link:hover {
+  color: #1e3a8a;
+}
+
+.resend-link:disabled {
+  color: #6b7280;
+  cursor: not-allowed;
+}
+
 .auth-success {
   color: #16a34a;
   font-size: 14px;

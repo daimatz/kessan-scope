@@ -228,6 +228,10 @@ auth.post('/register', async (c) => {
   if (existingUser) {
     // 既存ユーザーがいる場合、パスワードが設定されているか確認
     if (existingUser.password_hash) {
+      // 未確認ユーザーの場合は再送を促す
+      if (!existingUser.email_verified) {
+        return c.json({ error: 'このメールアドレスは確認待ちです。確認メールをご確認ください。', requiresVerification: true, email: existingUser.email }, 409);
+      }
       return c.json({ error: 'このメールアドレスは既に登録されています' }, 409);
     }
     // Google Authで作成されたアカウントにパスワードを追加（既にメール確認済み）
@@ -310,7 +314,7 @@ auth.post('/login', async (c) => {
 
   // メール確認チェック
   if (!user.email_verified) {
-    return c.json({ error: 'メールアドレスが確認されていません。確認メールをご確認ください。', requiresVerification: true }, 403);
+    return c.json({ error: 'メールアドレスが確認されていません。確認メールをご確認ください。', requiresVerification: true, email: user.email }, 403);
   }
 
   // JWTを作成
