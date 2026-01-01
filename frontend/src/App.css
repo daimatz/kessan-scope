@@ -199,6 +199,15 @@ input:focus, textarea:focus, select:focus {
   border-radius: 6px;
 }
 
+.auth-success {
+  color: #16a34a;
+  font-size: 14px;
+  text-align: left;
+  padding: 8px 12px;
+  background: #f0fdf4;
+  border-radius: 6px;
+}
+
 .auth-submit {
   padding: 12px 24px;
   font-size: 15px;

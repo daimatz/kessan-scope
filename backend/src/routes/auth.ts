@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { setCookie, getCookie, deleteCookie } from 'hono/cookie';
 import type { Env, GoogleUserInfo, JWTPayload } from '../types';
-import { getUserByGoogleId, createUser, getUserById, getUserByEmail, createUserWithPassword, verifyPassword, setUserPassword, linkGoogleAccount, verifyEmailToken, regenerateVerificationToken } from '../db/queries';
+import { getUserByGoogleId, createUser, getUserById, getUserByEmail, createUserWithPassword, verifyPassword, setUserPassword, linkGoogleAccount, verifyEmailToken, regenerateVerificationToken, deleteUser } from '../db/queries';
 import { MailerSendClient } from '../services/mailersend';
 
 const auth = new Hono<{ Bindings: Env }>();
@@ -267,8 +267,8 @@ auth.post('/register', async (c) => {
   });
 
   // 確認メールを送信
-  const verificationUrl = `${c.env.FRONTEND_URL}/verify-email?token=${verificationToken}`;
-  const mailer = new MailerSendClient(c.env.MAILERSEND_API_KEY, 'noreply@stockwatcher.app');
+  const verificationUrl = `${new URL(c.req.url).origin}/api/auth/verify-email?token=${verificationToken}`;
+  const mailer = new MailerSendClient(c.env.MAILERSEND_API_KEY, c.env.MAILERSEND_FROM_EMAIL);
 
   try {
     await mailer.sendVerificationEmail({
@@ -277,7 +277,9 @@ auth.post('/register', async (c) => {
     });
   } catch (error) {
     console.error('Failed to send verification email:', error);
-    // メール送信失敗してもユーザー作成は成功とする
+    // メール送信失敗時はユーザーを削除
+    await deleteUser(c.env.DB, user.id);
+    return c.json({ error: '確認メールの送信に失敗しました。しばらく経ってから再度お試しください。' }, 500);
   }
 
   return c.json({
@@ -374,13 +376,13 @@ auth.get('/verify-email', async (c) => {
   const token = c.req.query('token');
 
   if (!token) {
-    return c.json({ error: '無効なリンクです' }, 400);
+    return c.redirect(`${c.env.FRONTEND_URL}?error=invalid_token`);
   }
 
   const user = await verifyEmailToken(c.env.DB, token);
 
   if (!user) {
-    return c.json({ error: '無効または期限切れのリンクです' }, 400);
+    return c.redirect(`${c.env.FRONTEND_URL}?error=expired_token`);
   }
 
   // JWTを作成してログイン状態にする
@@ -400,14 +402,8 @@ auth.get('/verify-email', async (c) => {
     maxAge: 60 * 60 * 24 * 7,
   });
 
-  return c.json({
-    message: 'メールアドレスが確認されました',
-    user: {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-    },
-  });
+  // 確認完了後、フロントエンドにリダイレクト
+  return c.redirect(`${c.env.FRONTEND_URL}?verified=1`);
 });
 
 // 確認メール再送
@@ -433,8 +429,8 @@ auth.post('/resend-verification', async (c) => {
   const verificationToken = await regenerateVerificationToken(c.env.DB, user.id);
 
   // 確認メールを送信
-  const verificationUrl = `${c.env.FRONTEND_URL}/verify-email?token=${verificationToken}`;
-  const mailer = new MailerSendClient(c.env.MAILERSEND_API_KEY, 'noreply@stockwatcher.app');
+  const verificationUrl = `${new URL(c.req.url).origin}/api/auth/verify-email?token=${verificationToken}`;
+  const mailer = new MailerSendClient(c.env.MAILERSEND_API_KEY, c.env.MAILERSEND_FROM_EMAIL);
 
   try {
     await mailer.sendVerificationEmail({

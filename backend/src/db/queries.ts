@@ -50,6 +50,10 @@ export async function getUserByEmail(db: D1Database, email: string): Promise<Use
   return result;
 }
 
+export async function deleteUser(db: D1Database, id: string): Promise<void> {
+  await db.prepare('DELETE FROM users WHERE id = ?').bind(id).run();
+}
+
 export function generateVerificationToken(): string {
   return crypto.randomUUID();
 }

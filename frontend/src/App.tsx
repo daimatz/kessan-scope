@@ -18,6 +18,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
 
   const { data, isLoading } = useQuery({
     queryKey: ['auth'],
@@ -37,12 +38,19 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
   const registerMutation = useMutation({
     mutationFn: authAPI.register,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['auth'] });
-      setError('');
+    onSuccess: (data) => {
+      if (data.requiresVerification) {
+        setSuccessMessage('確認メールを送信しました。24時間以内にメールをご確認ください。');
+        setError('');
+      } else {
+        queryClient.invalidateQueries({ queryKey: ['auth'] });
+        setError('');
+        setSuccessMessage('');
+      }
     },
     onError: (err: Error) => {
       setError(err.message);
+      setSuccessMessage('');
     },
   });
 
@@ -77,13 +85,13 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
           <div className="auth-tabs">
             <button
               className={`auth-tab ${mode === 'login' ? 'active' : ''}`}
-              onClick={() => { setMode('login'); setError(''); }}
+              onClick={() => { setMode('login'); setError(''); setSuccessMessage(''); }}
             >
               ログイン
             </button>
             <button
               className={`auth-tab ${mode === 'register' ? 'active' : ''}`}
-              onClick={() => { setMode('register'); setError(''); }}
+              onClick={() => { setMode('register'); setError(''); setSuccessMessage(''); }}
             >
               新規登録
             </button>
@@ -117,7 +125,8 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
               disabled={isPending}
             />
             {error && <div className="auth-error">{error}</div>}
-            <button type="submit" className="auth-submit" disabled={isPending}>
+            {successMessage && <div className="auth-success">{successMessage}</div>}
+            <button type="submit" className="auth-submit" disabled={isPending || !!successMessage}>
               {isPending ? '処理中...' : mode === 'login' ? 'ログイン' : '登録'}
             </button>
           </form>

@@ -164,6 +164,8 @@ ${options.lowlights.map(l => `- ${l}`).join('\n')}
       <p>Stock Watcher へのご登録ありがとうございます。</p>
       <p>以下のボタンをクリックして、メールアドレスを確認してください。</p>
       <a href="${options.verificationUrl}" class="button">メールアドレスを確認する →</a>
+      <p class="note">ボタンが機能しない場合は、以下のURLをブラウザに貼り付けてください：</p>
+      <p style="word-break: break-all; font-size: 12px; color: #4b5563;">${options.verificationUrl}</p>
       <p class="note">このリンクは24時間有効です。<br>心当たりがない場合は、このメールを無視してください。</p>
     </div>
     <div class="footer">

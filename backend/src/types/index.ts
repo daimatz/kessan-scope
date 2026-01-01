@@ -4,6 +4,7 @@ export interface Env {
   EDINET_API_KEY: string;
   OPENAI_API_KEY: string;
   MAILERSEND_API_KEY: string;
+  MAILERSEND_FROM_EMAIL: string;
   GOOGLE_CLIENT_ID: string;
   GOOGLE_CLIENT_SECRET: string;
   JWT_SECRET: string;
