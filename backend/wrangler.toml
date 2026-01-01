@@ -11,6 +11,7 @@ database_id = "placeholder" # wrangler d1 create で取得後に更新
 
 [vars]
 FRONTEND_URL = "http://localhost:5173"
+# ENVIRONMENT = "production"  # 本番デプロイ時に設定（/internal/* を無効化）
 
 # Secrets (wrangler secret put で設定)
 # EDINET_API_KEY
@@ -19,3 +20,7 @@ FRONTEND_URL = "http://localhost:5173"
 # GOOGLE_CLIENT_ID
 # GOOGLE_CLIENT_SECRET
 # JWT_SECRET
+
+# Cron Triggers
+[triggers]
+crons = ["0 0 * * *"]  # 毎日 0:00 UTC (9:00 JST) に銘柄リスト更新

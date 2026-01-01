@@ -1,14 +1,53 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { watchlistAPI } from '../api';
+import { watchlistAPI, stocksAPI, type Stock } from '../api';
 
 export default function Watchlist() {
   const queryClient = useQueryClient();
-  const [stockCode, setStockCode] = useState('');
-  const [stockName, setStockName] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<Stock[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [selectedStock, setSelectedStock] = useState<Stock | null>(null);
   const [customPrompt, setCustomPrompt] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editPrompt, setEditPrompt] = useState('');
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Debounced search
+  useEffect(() => {
+    if (!searchQuery || searchQuery.length < 1) {
+      setSearchResults([]);
+      setShowDropdown(false);
+      return;
+    }
+
+    setIsSearching(true);
+    const timer = setTimeout(async () => {
+      try {
+        const result = await stocksAPI.search(searchQuery);
+        setSearchResults(result.stocks);
+        setShowDropdown(true);
+      } catch {
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['watchlist'],
@@ -19,9 +58,10 @@ export default function Watchlist() {
     mutationFn: watchlistAPI.add,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['watchlist'] });
-      setStockCode('');
-      setStockName('');
+      setSearchQuery('');
+      setSelectedStock(null);
       setCustomPrompt('');
+      setSearchResults([]);
     },
   });
 
@@ -43,15 +83,21 @@ export default function Watchlist() {
 
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!stockCode || !/^\d{4}$/.test(stockCode)) {
-      alert('証券コードは4桁の数字で入力してください');
+    if (!selectedStock) {
+      alert('銘柄を選択してください');
       return;
     }
     addMutation.mutate({
-      stock_code: stockCode,
-      stock_name: stockName || undefined,
+      stock_code: selectedStock.code,
+      stock_name: selectedStock.name,
       custom_prompt: customPrompt || undefined,
     });
+  };
+
+  const handleSelectStock = (stock: Stock) => {
+    setSelectedStock(stock);
+    setSearchQuery(`${stock.code} ${stock.name}`);
+    setShowDropdown(false);
   };
 
   if (isLoading) {
@@ -81,24 +127,38 @@ export default function Watchlist() {
       <section className="section">
         <h2>銘柄を追加</h2>
         <form onSubmit={handleAdd} className="add-form">
-          <div className="form-row">
+          <div className="stock-search" ref={dropdownRef}>
             <input
               type="text"
-              placeholder="証券コード（4桁）"
-              value={stockCode}
-              onChange={(e) => setStockCode(e.target.value)}
-              maxLength={4}
-              pattern="\d{4}"
-              required
-              className="input-code"
+              placeholder="証券コードまたは銘柄名で検索"
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setSelectedStock(null);
+              }}
+              className="input-search"
             />
-            <input
-              type="text"
-              placeholder="銘柄名（任意）"
-              value={stockName}
-              onChange={(e) => setStockName(e.target.value)}
-              className="input-name"
-            />
+            {isSearching && <div className="search-loading">検索中...</div>}
+            {showDropdown && searchResults.length > 0 && (
+              <div className="search-dropdown">
+                {searchResults.map((stock) => (
+                  <div
+                    key={stock.code}
+                    className="search-item"
+                    onClick={() => handleSelectStock(stock)}
+                  >
+                    <span className="search-code">{stock.code}</span>
+                    <span className="search-name">{stock.name}</span>
+                    {stock.market && <span className="search-market">{stock.market}</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+            {showDropdown && searchResults.length === 0 && !isSearching && searchQuery.length >= 1 && (
+              <div className="search-dropdown">
+                <div className="search-empty">該当する銘柄がありません</div>
+              </div>
+            )}
           </div>
           <textarea
             placeholder="カスタム分析プロンプト（任意）&#10;例: 海外売上比率の推移に注目して分析してください"

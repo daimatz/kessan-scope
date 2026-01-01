@@ -25,8 +25,8 @@ watchlist.post('/', async (c) => {
     custom_prompt?: string;
   }>();
 
-  if (!body.stock_code || !/^\d{4}$/.test(body.stock_code)) {
-    return c.json({ error: '証券コードは4桁の数字です' }, 400);
+  if (!body.stock_code || !/^\d{4,5}$/.test(body.stock_code)) {
+    return c.json({ error: '証券コードは4〜5桁の数字です' }, 400);
   }
 
   try {

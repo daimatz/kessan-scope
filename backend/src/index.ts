@@ -7,6 +7,8 @@ import watchlist from './routes/watchlist';
 import earnings from './routes/earnings';
 import chat from './routes/chat';
 import users from './routes/users';
+import stocks from './routes/stocks';
+import { updateStockList } from './services/stockUpdater';
 
 const app = new Hono<{ Bindings: Env; Variables: { userId: string } }>();
 
@@ -21,6 +23,25 @@ app.use('*', async (c, next) => {
 
 // ヘルスチェック
 app.get('/health', (c) => c.json({ status: 'ok' }));
+
+// /internal/* は本番環境で無効化
+app.use('/internal/*', async (c, next) => {
+  if (c.env.ENVIRONMENT === 'production') {
+    return c.json({ error: 'Not found' }, 404);
+  }
+  return next();
+});
+
+// 銘柄リスト手動更新（開発用）
+app.post('/internal/update-stocks', async (c) => {
+  try {
+    const result = await updateStockList(c.env);
+    return c.json({ success: true, ...result });
+  } catch (error) {
+    console.error('Stock update failed:', error);
+    return c.json({ error: 'Failed to update stock list' }, 500);
+  }
+});
 
 // 認証ルート（認証不要）
 app.route('/api/auth', auth);
@@ -51,6 +72,7 @@ app.route('/api/watchlist', watchlist);
 app.route('/api/earnings', earnings);
 app.route('/api/chat', chat);
 app.route('/api/users', users);
+app.route('/api/stocks', stocks);
 
 // 404ハンドラ
 app.notFound((c) => c.json({ error: 'Not found' }, 404));
@@ -61,4 +83,18 @@ app.onError((err, c) => {
   return c.json({ error: 'Internal server error' }, 500);
 });
 
-export default app;
+// Scheduled handler for stock list updates
+const scheduled: ExportedHandlerScheduledHandler<Env> = async (event, env, ctx) => {
+  console.log('Starting scheduled stock list update...');
+  try {
+    const result = await updateStockList(env);
+    console.log(`Stock list updated: ${result.updated}/${result.total} stocks`);
+  } catch (error) {
+    console.error('Failed to update stock list:', error);
+  }
+};
+
+export default {
+  fetch: app.fetch,
+  scheduled,
+};

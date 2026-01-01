@@ -96,6 +96,19 @@ export const chatAPI = {
     ),
 };
 
+// Stocks API
+export const stocksAPI = {
+  search: (query: string) =>
+    fetchAPI<{ stocks: Stock[] }>(`/api/stocks/search?q=${encodeURIComponent(query)}`),
+};
+
+export interface Stock {
+  code: string;
+  name: string;
+  market: string | null;
+  sector: string | null;
+}
+
 // Users API
 export const usersAPI = {
   updateSettings: (data: { openai_model?: string; name?: string }) =>

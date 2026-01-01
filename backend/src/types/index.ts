@@ -9,6 +9,7 @@ export interface Env {
   GOOGLE_CLIENT_SECRET: string;
   JWT_SECRET: string;
   FRONTEND_URL: string;
+  ENVIRONMENT?: string; // 'production' | 'development'
 }
 
 // Database Models

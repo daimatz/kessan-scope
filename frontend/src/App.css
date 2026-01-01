@@ -936,3 +936,89 @@ input:focus, textarea:focus, select:focus {
     max-width: 90%;
   }
 }
+
+/* Stock Search */
+.stock-search {
+  position: relative;
+  margin-bottom: 12px;
+}
+
+.input-search {
+  width: 100%;
+  padding: 12px 14px;
+  font-size: 15px;
+  border: 1px solid var(--gray-300);
+  border-radius: 6px;
+}
+
+.input-search:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(30, 64, 175, 0.1);
+}
+
+.search-loading {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--gray-500);
+  font-size: 13px;
+}
+
+.search-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: white;
+  border: 1px solid var(--gray-300);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  max-height: 300px;
+  overflow-y: auto;
+  z-index: 100;
+  margin-top: 4px;
+}
+
+.search-item {
+  padding: 10px 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid var(--gray-100);
+}
+
+.search-item:last-child {
+  border-bottom: none;
+}
+
+.search-item:hover {
+  background: var(--gray-50);
+}
+
+.search-code {
+  font-weight: 600;
+  color: var(--primary);
+  min-width: 50px;
+}
+
+.search-name {
+  flex: 1;
+  color: var(--gray-900);
+}
+
+.search-market {
+  font-size: 12px;
+  color: var(--gray-500);
+  background: var(--gray-100);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.search-empty {
+  padding: 16px;
+  text-align: center;
+  color: var(--gray-500);
+}
