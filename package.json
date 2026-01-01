@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "typecheck": "tsgo --noEmit",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "typecheck": "vitest --typecheck --run",
+    "cf-typegen": "wrangler types",
     "db:migrate": "wrangler d1 migrations apply stock-watcher-db",
     "db:migrate:local": "wrangler d1 migrations apply stock-watcher-db --local"
   },
@@ -15,7 +18,8 @@
     "openai": "^4.70.0"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20241218.0",
+    "@cloudflare/vitest-pool-workers": "^0.11.1",
+    "vitest": "~3.2.0",
     "wrangler": "^4.0.0"
   }
 }

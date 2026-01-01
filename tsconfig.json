@@ -11,11 +11,11 @@
     "isolatedModules": true,
     "noEmit": true,
     "lib": ["ES2022"],
-    "types": ["@cloudflare/workers-types"],
+    "types": ["./worker-configuration.d.ts"],
     "paths": {
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "test/**/*"],
   "exclude": ["node_modules", "frontend"]
 }

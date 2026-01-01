@@ -10,7 +10,8 @@
 
 | レイヤー | 技術 |
 |---------|------|
-| ビルド | TypeScript (typescript-go / Microsoft Go実装) |
+| ビルド | TypeScript + esbuild (wrangler内蔵) |
+| テスト/型チェック | Vitest + @cloudflare/vitest-pool-workers |
 | フロントエンド | React |
 | バックエンド | Cloudflare Workers |
 | データベース | Cloudflare D1 (SQLite) |
@@ -268,7 +269,7 @@ FRONTEND_URL = "https://stock-watcher.pages.dev"
 ## 開発ロードマップ
 
 ### Phase 1: 基盤構築
-- [ ] プロジェクトセットアップ（typescript-go ビルド環境）
+- [x] プロジェクトセットアップ（Vitest + Cloudflare Workers）
 - [ ] D1 スキーマ作成・マイグレーション
 - [ ] Google OAuth 認証実装
 - [ ] 基本的なAPI実装
@@ -297,11 +298,7 @@ FRONTEND_URL = "https://stock-watcher.pages.dev"
 2. **PDF解析**: OpenAI Vision APIを使用。PDFを画像化して解析するためトークン消費が大きい点に注意
 3. **LLMコスト**: トークン消費量の監視・ユーザーへの課金検討
 4. **Workflowsの制限**: 実行時間・メモリ制限の確認
-5. **typescript-go**: 現時点ではプレビュー段階。本番利用時は安定性を要確認
-
 ## 参考リンク
-
-- [typescript-go (GitHub)](https://github.com/nicholaides/typescript-go)
 - [EDINET API](https://disclosure.edinet-fsa.go.jp/)
 - [Cloudflare Workers](https://developers.cloudflare.com/workers/)
 - [Cloudflare D1](https://developers.cloudflare.com/d1/)
