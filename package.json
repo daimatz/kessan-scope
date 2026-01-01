@@ -2,24 +2,15 @@
   "name": "stock-watcher",
   "version": "0.1.0",
   "private": true,
-  "type": "module",
   "scripts": {
-    "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
-    "test": "vitest",
-    "test:run": "vitest run",
-    "typecheck": "vitest --typecheck --run",
-    "cf-typegen": "wrangler types",
-    "db:migrate": "wrangler d1 migrations apply stock-watcher-db",
-    "db:migrate:local": "wrangler d1 migrations apply stock-watcher-db --local"
-  },
-  "dependencies": {
-    "hono": "^4.6.0",
-    "openai": "^4.70.0"
+    "dev": "concurrently \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\"",
+    "dev:backend": "npm run dev --prefix backend",
+    "dev:frontend": "npm run dev --prefix frontend",
+    "build": "npm run build --prefix frontend",
+    "test": "npm run test --prefix backend",
+    "deploy": "npm run deploy --prefix backend"
   },
   "devDependencies": {
-    "@cloudflare/vitest-pool-workers": "^0.11.1",
-    "vitest": "~3.2.0",
-    "wrangler": "^4.0.0"
+    "concurrently": "^9.2.1"
   }
 }
