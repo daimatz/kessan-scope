@@ -24,3 +24,13 @@ FRONTEND_URL = "http://localhost:5173"
 # Cron Triggers
 [triggers]
 crons = ["0 0 * * *"]  # 毎日 0:00 UTC (9:00 JST) に銘柄リスト更新
+
+# Queues
+[[queues.producers]]
+queue = "stock-watcher-import"
+binding = "IMPORT_QUEUE"
+
+[[queues.consumers]]
+queue = "stock-watcher-import"
+max_batch_size = 1
+max_retries = 3

@@ -86,7 +86,7 @@ earnings.get('/:id', async (c) => {
 earnings.get('/stock/:code', async (c) => {
   const code = c.req.param('code');
 
-  if (!/^\d{4}$/.test(code)) {
+  if (!/^\d{4,5}$/.test(code)) {
     return c.json({ error: '無効な証券コードです' }, 400);
   }
 

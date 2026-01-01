@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { getCookie } from 'hono/cookie';
-import type { Env } from './types';
+import type { Env, ImportQueueMessage } from './types';
 import auth, { verifyJWT } from './routes/auth';
 import watchlist from './routes/watchlist';
 import earnings from './routes/earnings';
@@ -9,6 +9,7 @@ import chat from './routes/chat';
 import users from './routes/users';
 import stocks from './routes/stocks';
 import { updateStockList } from './services/stockUpdater';
+import { processImportBatch } from './services/historicalImport';
 
 const app = new Hono<{ Bindings: Env; Variables: { userId: string } }>();
 
@@ -94,7 +95,26 @@ const scheduled: ExportedHandlerScheduledHandler<Env> = async (event, env, ctx) 
   }
 };
 
+// Queue handler for historical earnings import
+const queue: ExportedHandlerQueueHandler<Env, ImportQueueMessage> = async (batch, env) => {
+  for (const message of batch.messages) {
+    try {
+      if (message.body.type === 'import_historical_earnings') {
+        await processImportBatch(env, message.body);
+        message.ack();
+      } else {
+        console.error('Unknown message type:', message.body);
+        message.ack(); // 不明なメッセージは破棄
+      }
+    } catch (error) {
+      console.error('Failed to process queue message:', error);
+      message.retry();
+    }
+  }
+};
+
 export default {
   fetch: app.fetch,
   scheduled,
+  queue,
 };

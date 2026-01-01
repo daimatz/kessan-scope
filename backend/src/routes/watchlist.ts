@@ -6,6 +6,7 @@ import {
   removeFromWatchlist,
   updateWatchlistItem,
 } from '../db/queries';
+import { enqueueHistoricalImport } from '../services/historicalImport';
 
 const watchlist = new Hono<{ Bindings: Env; Variables: { userId: string } }>();
 
@@ -36,6 +37,14 @@ watchlist.post('/', async (c) => {
       stock_name: body.stock_name || null,
       custom_prompt: body.custom_prompt || null,
     });
+
+    // Queueに過去決算インポートジョブを追加
+    c.executionCtx.waitUntil(
+      enqueueHistoricalImport(c.env.IMPORT_QUEUE, body.stock_code).catch((error) => {
+        console.error(`Failed to enqueue historical import for ${body.stock_code}:`, error);
+      })
+    );
+
     return c.json({ item }, 201);
   } catch (error) {
     // UNIQUE constraint violation

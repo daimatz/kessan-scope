@@ -1,6 +1,7 @@
 // Cloudflare Workers Bindings
 export interface Env {
   DB: D1Database;
+  IMPORT_QUEUE: Queue<ImportQueueMessage>;
   EDINET_API_KEY: string;
   OPENAI_API_KEY: string;
   MAILERSEND_API_KEY: string;
@@ -10,6 +11,14 @@ export interface Env {
   JWT_SECRET: string;
   FRONTEND_URL: string;
   ENVIRONMENT?: string; // 'production' | 'development'
+}
+
+// Queue message types
+export interface ImportQueueMessage {
+  type: 'import_historical_earnings';
+  stockCode: string;
+  startDate: string; // YYYY-MM-DD
+  endDate: string;   // YYYY-MM-DD
 }
 
 // Database Models
