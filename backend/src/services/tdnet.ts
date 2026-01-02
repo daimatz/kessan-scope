@@ -29,10 +29,23 @@ export function isEarningsSummary(title: string): boolean {
 
 // 決算発表資料かどうか判定
 export function isEarningsPresentation(title: string): boolean {
+  // 子会社の決算は対象外
+  if (title.includes('子会社') && title.includes('決算')) {
+    return false;
+  }
+
+  // 「四半期決算」は決算短信以外のみ対象
+  if (title.includes('四半期決算') && !title.includes('決算短信')) {
+    return true;
+  }
+
   return (
     title.includes('決算説明') ||
-    title.includes('決算報告プレゼンテーション') ||
+    title.includes('決算報告') ||
     title.includes('決算補足') ||
+    title.includes('決算参考') ||
+    title.includes('決算について') ||
+    title.includes('決算を発表') ||
     title.includes('説明会資料') ||
     title.includes('プレゼンテーション資料') ||
     title.includes('決算資料') ||
@@ -44,10 +57,12 @@ export function isEarningsPresentation(title: string): boolean {
     title.includes('決算概要') ||
     title.includes('業績概要') ||
     title.includes('決算ハイライト') ||
+    title.includes('連結決算') ||
     title.includes('IR資料') ||
     title.includes('Earnings') ||
     title.includes('Financial Results') ||
-    title.includes('Presentation')
+    title.includes('Presentation') ||
+    title.includes('Fact Sheet')
   );
 }
 
@@ -109,12 +124,12 @@ export function determineFiscalQuarter(title: string): number {
 
   // 「1Q」「Q1」「第1四半期」などのパターン
   if (/[^0-9]1Q|Q1[^0-9]|第1四半期|第１四半期/i.test(title)) return 1;
-  if (/[^0-9]2Q|Q2[^0-9]|第2四半期|第２四半期|中間/i.test(title)) return 2;
+  if (/[^0-9]2Q|Q2[^0-9]|第2四半期|第２四半期|中間|上期/i.test(title)) return 2;
   if (/[^0-9]3Q|Q3[^0-9]|第3四半期|第３四半期/i.test(title)) return 3;
   if (/[^0-9]4Q|Q4[^0-9]|第4四半期|第４四半期|通期|期末|FullYear|Full Year|Annual/i.test(title)) return 4;
 
-  // 「四半期」を含まない決算短信・説明資料は通期(Q4)
-  if ((isEarningsSummary(title) || isEarningsPresentation(title)) && !title.includes('四半期')) {
+  // 「四半期」「中間」「上期」を含まない決算短信・説明資料は通期(Q4)
+  if ((isEarningsSummary(title) || isEarningsPresentation(title)) && !title.includes('四半期') && !title.includes('中間') && !title.includes('上期')) {
     return 4;
   }
 
@@ -156,7 +171,8 @@ export function determineFiscalYear(title: string, pubdate?: string): string {
   }
 
   // "2025年度" パターン（そのまま使用）
-  const nendoMatch = title.match(/(\d{4})年度/);
+  // "2025度" のような「年」が省略されたパターンも対応
+  const nendoMatch = title.match(/(\d{4})年?度/);
   if (nendoMatch) {
     return nendoMatch[1];
   }

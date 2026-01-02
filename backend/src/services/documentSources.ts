@@ -3,6 +3,7 @@
 
 import { TdnetClient, TdnetDocument, isStrategicDocument, determineFiscalYear, determineFiscalQuarter, getDocumentType } from './tdnet';
 import { IrbankClient, toDocumentCandidate } from './irbank';
+import { DocumentClassifier, DocumentClassification, toOldDocumentType } from './documentClassifier';
 
 // 共通のドキュメント形式
 export interface DocumentCandidate {
@@ -10,6 +11,11 @@ export interface DocumentCandidate {
   title: string;
   pubdate: string;  // YYYY-MM-DD
   source: 'tdnet' | 'irbank';
+}
+
+// LLM分類結果付きドキュメント
+export interface ClassifiedDocument extends DocumentCandidate {
+  classification: DocumentClassification;
 }
 
 // TdnetDocument を共通形式に変換
@@ -78,5 +84,43 @@ export async function getDocumentCandidates(
   return candidates;
 }
 
-// 年度・四半期を判定（エクスポート）
+// LLM で分類してフィルタリング
+export async function classifyDocuments(
+  candidates: DocumentCandidate[],
+  openaiApiKey: string
+): Promise<ClassifiedDocument[]> {
+  const classifier = new DocumentClassifier(openaiApiKey);
+  const results: ClassifiedDocument[] = [];
+
+  // バッチ処理（10件ずつ並列）
+  const BATCH_SIZE = 10;
+  for (let i = 0; i < candidates.length; i += BATCH_SIZE) {
+    const batch = candidates.slice(i, i + BATCH_SIZE);
+
+    const classifications = await Promise.all(
+      batch.map((doc) => classifier.classify(doc.title, doc.pubdate))
+    );
+
+    for (let j = 0; j < batch.length; j++) {
+      const classification = classifications[j];
+      // 'other' 以外のみ対象
+      if (classification.document_type !== 'other') {
+        results.push({
+          ...batch[j],
+          classification,
+        });
+      } else {
+        console.log(`Skipped by LLM (other): ${batch[j].title}`);
+      }
+    }
+  }
+
+  return results;
+}
+
+// 年度・四半期を判定（エクスポート - 旧ロジック互換用）
 export { determineFiscalYear, determineFiscalQuarter, getDocumentType };
+
+// LLM分類関連もエクスポート
+export { DocumentClassifier, toOldDocumentType };
+export type { DocumentClassification };

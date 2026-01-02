@@ -4,6 +4,7 @@ export interface Env {
   PDF_BUCKET: R2Bucket;
   IMPORT_QUEUE: Queue<QueueMessage>;
   ANTHROPIC_API_KEY: string;
+  OPENAI_API_KEY: string;
   MAILERSEND_API_KEY: string;
   MAILERSEND_FROM_EMAIL: string;
   GOOGLE_CLIENT_ID: string;

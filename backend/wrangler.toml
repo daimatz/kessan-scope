@@ -20,6 +20,7 @@ FRONTEND_URL = "http://localhost:5173"
 
 # Secrets (wrangler secret put で設定)
 # ANTHROPIC_API_KEY
+# OPENAI_API_KEY
 # MAILERSEND_API_KEY
 # GOOGLE_CLIENT_ID
 # GOOGLE_CLIENT_SECRET

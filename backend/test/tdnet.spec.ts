@@ -53,6 +53,14 @@ describe('tdnet パターンマッチング', () => {
         '決算概要',
         '業績概要',
         'IR資料',
+        // 100社検証で追加されたパターン
+        '2025年度第2四半期(中間期)決算報告',
+        '2026年3月期第2四半期(中間期)決算参考資料',
+        '2025年度第2四半期決算について',
+        '日産自動車、2025度上期決算を発表',
+        '2023年度第2四半期決算',
+        '2025年12月期第3四半期連結決算の概要',
+        '2026年3月期第2四半期決算Fact Sheet',
       ];
       cases.forEach((title) => {
         expect(isEarningsPresentation(title), title).toBe(true);
@@ -172,6 +180,8 @@ describe('tdnet パターンマッチング', () => {
         ['2017年度決算短信〔米国基準〕(連結)', '2017'],
         ['2024年度第3四半期決算短信〔IFRS〕(連結)', '2024'],
         ['2025年度第2四半期(中間期)決算短信〔IFRS〕(連結)', '2025'],
+        // 100社検証で追加: 「年」が省略されたパターン
+        ['日産自動車、2025度上期決算を発表', '2025'],
       ])('%s → %s年', (title, expected) => {
         expect(determineFiscalYear(title)).toBe(expected);
       });
@@ -226,11 +236,14 @@ describe('tdnet パターンマッチング', () => {
       });
     });
 
-    describe('中間期パターン', () => {
+    describe('中間期・上期パターン', () => {
       it.each([
         ['2026年3月期第2四半期(中間期)決算短信〔IFRS〕(連結)', 2],
         ['2026年3月期中間決算短信(連結)', 2],
         ['中間期決算説明資料', 2],
+        // 100社検証で追加された上期パターン
+        ['2026年3月期上期決算説明会資料', 2],
+        ['日産自動車、2025度上期決算を発表', 2],
       ])('%s → Q%d', (title, expected) => {
         expect(determineFiscalQuarter(title)).toBe(expected);
       });
@@ -420,6 +433,43 @@ describe('tdnet パターンマッチング', () => {
       ];
 
       it.each(sbgDocs)('$title', ({ title, year, q }) => {
+        expect(isStrategicDocument(title)).toBe(true);
+        expect(determineFiscalYear(title)).toBe(year);
+        expect(determineFiscalQuarter(title)).toBe(q);
+      });
+    });
+
+    describe('100社検証 - 追加パターン', () => {
+      const additionalDocs = [
+        // 決算説明会資料バリエーション
+        { title: '2026年3月期第2四半期決算説明会資料', year: '2025', q: 2 },
+        { title: '2025年度第2四半期決算説明資料', year: '2025', q: 2 },
+        { title: '2025年度第2四半期決算ハイライト', year: '2025', q: 2 },
+        { title: '2025年12月期第3四半期決算説明会資料', year: '2024', q: 3 },
+        { title: '2026年2月期第2四半期決算補足資料', year: '2025', q: 2 },
+        { title: 'Daigasグループ2026年3月期第2四半期決算プレゼンテーション資料', year: '2025', q: 2 },
+        { title: '2026年3月期第2四半期決算アナリスト向け説明会資料', year: '2025', q: 2 },
+        { title: '2025年度第2四半期決算について', year: '2025', q: 2 },
+        { title: '2025年度第2四半期(中間期)決算報告', year: '2025', q: 2 },
+        { title: '2026年3月期第2四半期(中間期)決算説明', year: '2025', q: 2 },
+        { title: '2026年3月期第2四半期(中間期)決算補足資料', year: '2025', q: 2 },
+        { title: '2026年3月期第2四半期(中間期)決算参考資料', year: '2025', q: 2 },
+        { title: '2025年12月期第3四半期連結決算の概要', year: '2024', q: 3 },
+        { title: '2023年度第2四半期決算', year: '2023', q: 2 },
+        { title: '2026年3月期第2四半期決算Fact Sheet', year: '2025', q: 2 },
+        { title: '2025年度(26年3月期)第2四半期決算概要', year: '2025', q: 2 },
+        { title: '2026年3月期第2四半期決算説明会', year: '2025', q: 2 },
+        // 上期パターン
+        { title: '2026年3月期上期決算説明会資料', year: '2025', q: 2 },
+        { title: '日産自動車、2025度上期決算を発表', year: '2025', q: 2 },
+        // 決算短信
+        { title: '2024年3月期第2四半期決算短信〔米国基準〕(連結)', year: '2023', q: 2 },
+        { title: '2025年12月期第3四半期決算短信〔IFRS〕(連結)', year: '2024', q: 3 },
+        { title: '2025年8月期決算短信〔IFRS会計基準〕(連結)', year: '2024', q: 4 },
+        { title: '2026年3月期中間決算短信〔米国会計基準〕(連結)', year: '2025', q: 2 },
+      ];
+
+      it.each(additionalDocs)('$title → $year年Q$q', ({ title, year, q }) => {
         expect(isStrategicDocument(title)).toBe(true);
         expect(determineFiscalYear(title)).toBe(year);
         expect(determineFiscalQuarter(title)).toBe(q);

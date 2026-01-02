@@ -1,4 +1,9 @@
-import { getDocumentCandidates, determineFiscalYear, determineFiscalQuarter, getDocumentType, DocumentCandidate } from './documentSources';
+import {
+  getDocumentCandidates,
+  classifyDocuments,
+  ClassifiedDocument,
+  toOldDocumentType,
+} from './documentSources';
 import { createEarnings, getExistingContentHashes, checkUrlExists } from '../db/queries';
 import { analyzeEarningsDocument } from './earningsAnalyzer';
 import { fetchAndStorePdf } from './pdfStorage';
@@ -27,19 +32,20 @@ export async function enqueueHistoricalImport(
   console.log(`Enqueued historical import for ${stockCode}`);
 }
 
-// 1ドキュメントを処理
+// 1ドキュメントを処理（LLM分類済み）
 async function processDocument(
   env: Env,
   stockCode: string,
-  doc: DocumentCandidate,
+  doc: ClassifiedDocument,
   existingHashes: Set<string>
 ): Promise<{ imported: boolean; hash?: string }> {
-  const fiscalYear = determineFiscalYear(doc.title, doc.pubdate);
-  const fiscalQuarter = determineFiscalQuarter(doc.title);
-  const docType = getDocumentType(doc.title);
+  const { classification } = doc;
+  const fiscalYear = classification.fiscal_year;
+  const fiscalQuarter = classification.fiscal_quarter ?? 0; // null は 0 に変換
+  const docType = toOldDocumentType(classification.document_type);
 
   if (!fiscalYear) {
-    console.log(`Skipping (cannot parse year): ${doc.title}`);
+    console.log(`Skipping (LLM could not parse year): ${doc.title}`);
     return { imported: false };
   }
 
@@ -69,7 +75,7 @@ async function processDocument(
     });
 
     console.log(
-      `Imported [${docType}] from ${doc.source}: ${stockCode} ${fiscalYear}Q${fiscalQuarter} - ${doc.title}`
+      `Imported [${docType}] from ${doc.source}: ${stockCode} ${fiscalYear}Q${fiscalQuarter} - ${doc.title} (confidence: ${classification.confidence.toFixed(2)})`
     );
 
     // LLM で分析
@@ -106,13 +112,19 @@ export async function processImportBatch(
 
   // TDnet + IRBANK からドキュメント候補を取得
   const candidates = await getDocumentCandidates(stockCode);
+  console.log(`Found ${candidates.length} candidates (pre-filtered by rule-based)`);
+
+  // LLM で分類・フィルタリング
+  console.log(`Classifying documents with LLM...`);
+  const classifiedDocs = await classifyDocuments(candidates, env.OPENAI_API_KEY);
+  console.log(`${classifiedDocs.length} documents classified as target`);
 
   let imported = 0;
   let skipped = 0;
 
   // PARALLEL_LIMIT 件ずつ並列処理
-  for (let i = 0; i < candidates.length; i += PARALLEL_LIMIT) {
-    const batch = candidates.slice(i, i + PARALLEL_LIMIT);
+  for (let i = 0; i < classifiedDocs.length; i += PARALLEL_LIMIT) {
+    const batch = classifiedDocs.slice(i, i + PARALLEL_LIMIT);
 
     const results = await Promise.all(
       batch.map(doc => processDocument(env, stockCode, doc, existingHashes))

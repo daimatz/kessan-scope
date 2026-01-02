@@ -1,7 +1,8 @@
 // TDnetから新着戦略ドキュメントをチェックしてインポートする
 // ※新着はTDnetのみ（IRBANKは遅延があるため履歴用）
 
-import { TdnetClient, determineFiscalYear, determineFiscalQuarter, getDocumentType } from './tdnet';
+import { TdnetClient } from './tdnet';
+import { DocumentClassifier, toOldDocumentType } from './documentClassifier';
 import { createEarnings, getExistingContentHashes, checkUrlExists } from '../db/queries';
 import { analyzeEarningsDocument } from './earningsAnalyzer';
 import { fetchAndStorePdf } from './pdfStorage';
@@ -10,6 +11,7 @@ import type { Env } from '../types';
 // 全ウォッチリストユーザーの銘柄をチェック
 export async function checkNewReleases(env: Env): Promise<{ checked: number; imported: number }> {
   const client = new TdnetClient();
+  const classifier = new DocumentClassifier(env.OPENAI_API_KEY);
 
   // ウォッチリストにある全銘柄コードを取得（重複なし）
   const watchlistResult = await env.DB.prepare(`
@@ -25,9 +27,10 @@ export async function checkNewReleases(env: Env): Promise<{ checked: number; imp
 
   // TDnetの最新開示情報を取得
   const recentDocs = await client.getRecentDocuments(300);
+  // ルールベースで候補を絞る（コスト削減）
   const strategicDocs = client.filterStrategicDocuments(recentDocs);
 
-  console.log(`Found ${strategicDocs.length} recent strategic documents`);
+  console.log(`Found ${strategicDocs.length} recent strategic documents (rule-based)`);
 
   // 銘柄ごとの既存ハッシュをキャッシュ
   const hashCache = new Map<string, Set<string>>();
@@ -44,12 +47,21 @@ export async function checkNewReleases(env: Env): Promise<{ checked: number; imp
       continue;
     }
 
-    const fiscalYear = determineFiscalYear(doc.title, doc.pubdate);
-    const fiscalQuarter = determineFiscalQuarter(doc.title);
-    const docType = getDocumentType(doc.title);
+    // LLM で分類
+    const classification = await classifier.classify(doc.title, doc.pubdate);
+
+    // 対象外ならスキップ
+    if (classification.document_type === 'other') {
+      console.log(`Skipping by LLM (other): ${doc.title}`);
+      continue;
+    }
+
+    const fiscalYear = classification.fiscal_year;
+    const fiscalQuarter = classification.fiscal_quarter ?? 0;
+    const docType = toOldDocumentType(classification.document_type);
 
     if (!fiscalYear) {
-      console.log(`Skipping (cannot parse): ${doc.title}`);
+      console.log(`Skipping (LLM could not parse): ${doc.title}`);
       continue;
     }
 
@@ -91,7 +103,7 @@ export async function checkNewReleases(env: Env): Promise<{ checked: number; imp
 
       existingHashes.add(storedPdf.contentHash);
       imported++;
-      console.log(`Imported new [${docType}]: ${stockCode} ${fiscalYear}Q${fiscalQuarter} - ${doc.title}`);
+      console.log(`Imported new [${docType}]: ${stockCode} ${fiscalYear}Q${fiscalQuarter} - ${doc.title} (confidence: ${classification.confidence.toFixed(2)})`);
 
       // LLM で分析
       const result = await analyzeEarningsDocument(
