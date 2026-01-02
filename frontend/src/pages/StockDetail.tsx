@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { earningsAPI, watchlistAPI, getDocumentTypeLabel, getReleaseTypeLabel } from '../api';
+import { earningsAPI, watchlistAPI, getDocumentTypeLabel } from '../api';
 
 export default function StockDetail() {
   const { code } = useParams<{ code: string }>();
@@ -131,14 +131,13 @@ export default function StockDetail() {
       </section>
 
       <section className="section">
-        <h2>決算発表一覧 ({data.releases.length}件)</h2>
+        <h2>IR資料 ({data.releases.length}件)</h2>
         {data.releases.length === 0 ? (
-          <div className="empty-state">決算発表がありません</div>
+          <div className="empty-state">IR資料がありません</div>
         ) : (
           <div className="earnings-table">
             <div className="earnings-table-header">
               <span className="col-period">期間</span>
-              <span className="col-type">種類</span>
               <span className="col-docs">資料</span>
               <span className="col-status">ステータス</span>
             </div>
@@ -151,15 +150,14 @@ export default function StockDetail() {
                 <span className="col-period">
                   {r.fiscal_year}年{r.fiscal_quarter ? ` Q${r.fiscal_quarter}` : ''}
                 </span>
-                <span className="col-type">
-                  {getReleaseTypeLabel(r.release_type)}
-                </span>
                 <span className="col-docs">
-                  {r.documents.map((d) => (
-                    <span key={d.id} className="doc-badge">
-                      {getDocumentTypeLabel(d.document_type).slice(0, 4)}
-                    </span>
-                  ))}
+                  <span className="document-labels">
+                    {r.documents.map((d) => (
+                      <span key={d.id} className={`doc-label doc-label-${d.document_type}`}>
+                        {getDocumentTypeLabel(d.document_type)}
+                      </span>
+                    ))}
+                  </span>
                 </span>
                 <span className="col-status">
                   {r.has_summary && <span className="badge badge-summary">要約</span>}

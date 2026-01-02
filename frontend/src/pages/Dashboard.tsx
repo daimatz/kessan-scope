@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { earningsAPI, getDocumentTypeLabel, getReleaseTypeLabel, type DashboardRelease } from '../api';
+import { earningsAPI, getDocumentTypeLabel, type DashboardRelease } from '../api';
 
 // 銘柄ごとにグループ化
 function groupByStock(releases: DashboardRelease[]): Map<string, DashboardRelease[]> {
@@ -75,13 +75,10 @@ export default function Dashboard() {
                       <span className="earnings-period">
                         {r.fiscal_year}年{r.fiscal_quarter ? ` Q${r.fiscal_quarter}` : ''}
                       </span>
-                      <span className="release-type-badge">
-                        {getReleaseTypeLabel(r.release_type)}
-                      </span>
-                      <span className="document-badges">
+                      <span className="document-labels">
                         {r.documents.map((d) => (
-                          <span key={d.id} className="doc-badge">
-                            {getDocumentTypeLabel(d.document_type).slice(0, 2)}
+                          <span key={d.id} className={`doc-label doc-label-${d.document_type}`}>
+                            {getDocumentTypeLabel(d.document_type)}
                           </span>
                         ))}
                       </span>
