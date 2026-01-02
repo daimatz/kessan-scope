@@ -1,6 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import ReactMarkdown from 'react-markdown';
 import { earningsAPI, chatAPI, parseCustomAnalysis } from '../api';
 
 const STANDARD_ANALYSIS_KEY = '__standard__';
@@ -12,6 +13,9 @@ export default function EarningsDetail() {
   const queryClient = useQueryClient();
   const [message, setMessage] = useState('');
   const [showPdf, setShowPdf] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [streamingContent, setStreamingContent] = useState('');
+  const chatMessagesRef = useRef<HTMLDivElement>(null);
 
   // URLから選択中の分析軸を読み取り
   const searchParams = new URLSearchParams(location.search);
@@ -29,13 +33,12 @@ export default function EarningsDetail() {
     enabled: !!id,
   });
 
-  const sendMutation = useMutation({
-    mutationFn: (msg: string) => chatAPI.sendMessage(id!, msg),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['chat', id] });
-      setMessage('');
-    },
-  });
+  // チャットメッセージが更新されたら自動スクロール
+  useEffect(() => {
+    if (chatMessagesRef.current) {
+      chatMessagesRef.current.scrollTop = chatMessagesRef.current.scrollHeight;
+    }
+  }, [chatData?.messages, streamingContent]);
 
   // 選択中の分析軸を計算（早期リターンの前にフックを配置）
   const customPrompts = data?.availablePrompts ?? [];
@@ -68,10 +71,58 @@ export default function EarningsDetail() {
     return found ? parseCustomAnalysis(found.analysis) : null;
   }, [selectedAxis, analysesByPrompt]);
 
-  const handleSend = (e: React.FormEvent) => {
+  const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!message.trim()) return;
-    sendMutation.mutate(message);
+    if (!message.trim() || isStreaming) return;
+
+    const userMessage = message;
+    setMessage('');
+    setIsStreaming(true);
+    setStreamingContent('');
+
+    // 楽観的にユーザーメッセージを表示するため、ローカルに追加
+    const tempUserMessage = {
+      id: `temp-${Date.now()}`,
+      user_id: '',
+      earnings_id: id!,
+      role: 'user' as const,
+      content: userMessage,
+      created_at: new Date().toISOString(),
+    };
+
+    // 一時的にユーザーメッセージを追加
+    queryClient.setQueryData(['chat', id], (old: { messages: typeof tempUserMessage[] } | undefined) => ({
+      messages: [...(old?.messages || []), tempUserMessage],
+    }));
+
+    try {
+      await chatAPI.sendMessageStreamV2(id!, userMessage, {
+        onUserMessage: () => {
+          // ユーザーメッセージ送信完了
+        },
+        onDelta: (content) => {
+          setStreamingContent((prev) => prev + content);
+        },
+        onDone: () => {
+          // 完了したらチャット履歴を再取得
+          queryClient.invalidateQueries({ queryKey: ['chat', id] });
+          setIsStreaming(false);
+          setStreamingContent('');
+        },
+        onError: (error) => {
+          console.error('Chat error:', error);
+          setIsStreaming(false);
+          setStreamingContent('');
+          // エラー時はチャット履歴を再取得して一時メッセージを消す
+          queryClient.invalidateQueries({ queryKey: ['chat', id] });
+        },
+      });
+    } catch (error) {
+      console.error('Streaming failed:', error);
+      setIsStreaming(false);
+      setStreamingContent('');
+      queryClient.invalidateQueries({ queryKey: ['chat', id] });
+    }
   };
 
   // 分析軸変更
@@ -158,238 +209,259 @@ export default function EarningsDetail() {
         </div>
       </header>
 
-      {/* PDF表示セクション */}
-      {pdfUrl && (
-        <section className="section">
-          <div className="section-header">
-            <h2>📄 決算資料PDF</h2>
-            <div className="section-actions">
-              <button
-                onClick={() => setShowPdf(!showPdf)}
-                className="toggle-btn"
-              >
-                {showPdf ? '閉じる' : 'プレビュー'}
-              </button>
-              <a
-                href={pdfUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="download-link"
-              >
-                新しいタブで開く ↗
-              </a>
-            </div>
-          </div>
-          {showPdf && (
-            <div className="pdf-viewer">
-              <iframe
-                src={pdfUrl}
-                title="決算資料PDF"
-                width="100%"
-                height="800"
-              />
-            </div>
-          )}
-        </section>
-      )}
-
-      {/* 分析セクション */}
-      {(hasStandardAnalysis || hasCustomAnalysis) && (
-        <section className="section analysis-section">
-          {/* 分析軸セレクター */}
-          {allAxes.length > 0 && (
-            <div className="prompt-selector">
-              <span className="prompt-selector-label">分析軸:</span>
-              <div className="prompt-buttons">
-                {allAxes.map((axis) => (
+      <div className="detail-content-grid">
+        {/* 左カラム：PDF + 分析 */}
+        <div className="detail-left-column">
+          {/* PDF表示セクション */}
+          {pdfUrl && (
+            <section className="section">
+              <div className="section-header">
+                <h2>📄 決算資料PDF</h2>
+                <div className="section-actions">
                   <button
-                    key={axis}
-                    className={`prompt-button ${selectedAxis === axis ? 'active' : ''}`}
-                    onClick={() => handleAxisChange(axis)}
-                    title={axis === STANDARD_ANALYSIS_KEY ? '標準分析' : axis}
+                    onClick={() => setShowPdf(!showPdf)}
+                    className="toggle-btn"
                   >
-                    {axis === STANDARD_ANALYSIS_KEY
-                      ? '📊 標準分析'
-                      : axis.length > 20 ? `🎯 ${axis.substring(0, 18)}...` : `🎯 ${axis}`}
+                    {showPdf ? '閉じる' : 'プレビュー'}
                   </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* 時系列ナビゲーション */}
-          <nav className="timeline-nav">
-            {prevUrl ? (
-              <Link to={prevUrl} className="timeline-link">
-                ◀ {prevEarnings!.fiscal_year}Q{prevEarnings!.fiscal_quarter}
-              </Link>
-            ) : (
-              <span className="timeline-link disabled">◀ 前期</span>
-            )}
-            <span className="timeline-current">
-              {earnings.fiscal_year}Q{earnings.fiscal_quarter}
-            </span>
-            {nextUrl ? (
-              <Link to={nextUrl} className="timeline-link">
-                {nextEarnings!.fiscal_year}Q{nextEarnings!.fiscal_quarter} ▶
-              </Link>
-            ) : (
-              <span className="timeline-link disabled">次期 ▶</span>
-            )}
-          </nav>
-
-          {/* 標準分析コンテンツ */}
-          {selectedAxis === STANDARD_ANALYSIS_KEY && earnings.summary && (
-            <div className="tab-content">
-              <h2>📊 概要</h2>
-              <p className="overview">{earnings.summary.overview}</p>
-
-              <div className="metrics-grid">
-                <div className="metric">
-                  <div className="metric-label">売上高</div>
-                  <div className="metric-value">{earnings.summary.keyMetrics.revenue}</div>
-                </div>
-                <div className="metric">
-                  <div className="metric-label">営業利益</div>
-                  <div className="metric-value">{earnings.summary.keyMetrics.operatingIncome}</div>
-                </div>
-                <div className="metric">
-                  <div className="metric-label">純利益</div>
-                  <div className="metric-value">{earnings.summary.keyMetrics.netIncome}</div>
-                </div>
-                <div className="metric">
-                  <div className="metric-label">前年同期比</div>
-                  <div className="metric-value">{earnings.summary.keyMetrics.yoyGrowth}</div>
+                  <a
+                    href={pdfUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="download-link"
+                  >
+                    新しいタブで開く ↗
+                  </a>
                 </div>
               </div>
-
-              <div className="highlights-grid">
-                <div className="highlight-section">
-                  <h3>✅ ハイライト</h3>
-                  {earnings.highlights.length > 0 ? (
-                    <ul className="highlight-list positive">
-                      {earnings.highlights.map((h, i) => (
-                        <li key={i}>{h}</li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="empty">情報なし</p>
-                  )}
-                </div>
-
-                <div className="highlight-section">
-                  <h3>⚠️ ローライト</h3>
-                  {earnings.lowlights.length > 0 ? (
-                    <ul className="highlight-list negative">
-                      {earnings.lowlights.map((l, i) => (
-                        <li key={i}>{l}</li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="empty">情報なし</p>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* カスタム分析コンテンツ */}
-          {selectedAxis && selectedAxis !== STANDARD_ANALYSIS_KEY && (
-            <div className="tab-content">
-              {currentCustomAnalysis ? (
-                <>
-                  {currentCustomAnalysis.overview && (
-                    <>
-                      <h2>🎯 カスタム観点での概要</h2>
-                      <p className="overview">{currentCustomAnalysis.overview}</p>
-                    </>
-                  )}
-
-                  {(currentCustomAnalysis.highlights.length > 0 || currentCustomAnalysis.lowlights.length > 0) && (
-                    <div className="highlights-grid">
-                      <div className="highlight-section">
-                        <h3>✅ ハイライト</h3>
-                        {currentCustomAnalysis.highlights.length > 0 ? (
-                          <ul className="highlight-list positive">
-                            {currentCustomAnalysis.highlights.map((h, i) => (
-                              <li key={i}>{h}</li>
-                            ))}
-                          </ul>
-                        ) : (
-                          <p className="empty">情報なし</p>
-                        )}
-                      </div>
-
-                      <div className="highlight-section">
-                        <h3>⚠️ ローライト</h3>
-                        {currentCustomAnalysis.lowlights.length > 0 ? (
-                          <ul className="highlight-list negative">
-                            {currentCustomAnalysis.lowlights.map((l, i) => (
-                              <li key={i}>{l}</li>
-                            ))}
-                          </ul>
-                        ) : (
-                          <p className="empty">情報なし</p>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {currentCustomAnalysis.analysis && (
-                    <>
-                      <h3>📝 詳細分析</h3>
-                      <div className="custom-analysis">{currentCustomAnalysis.analysis}</div>
-                    </>
-                  )}
-                </>
-              ) : (
-                <div className="empty-analysis">
-                  <p>この期にはまだ「{selectedAxis}」での分析がありません</p>
+              {showPdf && (
+                <div className="pdf-viewer">
+                  <iframe
+                    src={pdfUrl}
+                    title="決算資料PDF"
+                    width="100%"
+                    height="800"
+                  />
                 </div>
               )}
-            </div>
+            </section>
           )}
-        </section>
-      )}
 
-      {/* チャット */}
-      <section className="section chat-section">
-        <h2>💬 質疑応答</h2>
-        <div className="chat-container">
-          <div className="chat-messages">
-            {messages.length === 0 ? (
-              <div className="empty">この決算について質問してみましょう</div>
-            ) : (
-              messages.map((msg) => (
-                <div key={msg.id} className={`chat-message ${msg.role}`}>
-                  <div className="message-role">
-                    {msg.role === 'user' ? 'あなた' : 'AI'}
+          {/* 分析セクション */}
+          {(hasStandardAnalysis || hasCustomAnalysis) && (
+            <section className="section analysis-section">
+              {/* 分析軸セレクター */}
+              {allAxes.length > 0 && (
+                <div className="prompt-selector">
+                  <span className="prompt-selector-label">分析軸:</span>
+                  <div className="prompt-buttons">
+                    {allAxes.map((axis) => (
+                      <button
+                        key={axis}
+                        className={`prompt-button ${selectedAxis === axis ? 'active' : ''}`}
+                        onClick={() => handleAxisChange(axis)}
+                        title={axis === STANDARD_ANALYSIS_KEY ? '標準分析' : axis}
+                      >
+                        {axis === STANDARD_ANALYSIS_KEY
+                          ? '📊 標準分析'
+                          : axis.length > 20 ? `🎯 ${axis.substring(0, 18)}...` : `🎯 ${axis}`}
+                      </button>
+                    ))}
                   </div>
-                  <div className="message-content">{msg.content}</div>
                 </div>
-              ))
-            )}
-            {sendMutation.isPending && (
-              <div className="chat-message assistant">
-                <div className="message-role">AI</div>
-                <div className="message-content loading-dots">考え中...</div>
-              </div>
-            )}
-          </div>
-          <form onSubmit={handleSend} className="chat-form">
-            <input
-              type="text"
-              placeholder="決算について質問..."
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              disabled={sendMutation.isPending}
-            />
-            <button type="submit" disabled={sendMutation.isPending || !message.trim()}>
-              送信
-            </button>
-          </form>
+              )}
+
+              {/* 時系列ナビゲーション */}
+              <nav className="timeline-nav">
+                {prevUrl ? (
+                  <Link to={prevUrl} className="timeline-link">
+                    ◀ {prevEarnings!.fiscal_year}Q{prevEarnings!.fiscal_quarter}
+                  </Link>
+                ) : (
+                  <span className="timeline-link disabled">◀ 前期</span>
+                )}
+                <span className="timeline-current">
+                  {earnings.fiscal_year}Q{earnings.fiscal_quarter}
+                </span>
+                {nextUrl ? (
+                  <Link to={nextUrl} className="timeline-link">
+                    {nextEarnings!.fiscal_year}Q{nextEarnings!.fiscal_quarter} ▶
+                  </Link>
+                ) : (
+                  <span className="timeline-link disabled">次期 ▶</span>
+                )}
+              </nav>
+
+              {/* 標準分析コンテンツ */}
+              {selectedAxis === STANDARD_ANALYSIS_KEY && earnings.summary && (
+                <div className="tab-content">
+                  <h2>📊 概要</h2>
+                  <p className="overview">{earnings.summary.overview}</p>
+
+                  <div className="metrics-grid">
+                    <div className="metric">
+                      <div className="metric-label">売上高</div>
+                      <div className="metric-value">{earnings.summary.keyMetrics.revenue}</div>
+                    </div>
+                    <div className="metric">
+                      <div className="metric-label">営業利益</div>
+                      <div className="metric-value">{earnings.summary.keyMetrics.operatingIncome}</div>
+                    </div>
+                    <div className="metric">
+                      <div className="metric-label">純利益</div>
+                      <div className="metric-value">{earnings.summary.keyMetrics.netIncome}</div>
+                    </div>
+                    <div className="metric">
+                      <div className="metric-label">前年同期比</div>
+                      <div className="metric-value">{earnings.summary.keyMetrics.yoyGrowth}</div>
+                    </div>
+                  </div>
+
+                  <div className="highlights-grid">
+                    <div className="highlight-section">
+                      <h3>✅ ハイライト</h3>
+                      {earnings.highlights.length > 0 ? (
+                        <ul className="highlight-list positive">
+                          {earnings.highlights.map((h, i) => (
+                            <li key={i}>{h}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="empty">情報なし</p>
+                      )}
+                    </div>
+
+                    <div className="highlight-section">
+                      <h3>⚠️ ローライト</h3>
+                      {earnings.lowlights.length > 0 ? (
+                        <ul className="highlight-list negative">
+                          {earnings.lowlights.map((l, i) => (
+                            <li key={i}>{l}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="empty">情報なし</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* カスタム分析コンテンツ */}
+              {selectedAxis && selectedAxis !== STANDARD_ANALYSIS_KEY && (
+                <div className="tab-content">
+                  {currentCustomAnalysis ? (
+                    <>
+                      {currentCustomAnalysis.overview && (
+                        <>
+                          <h2>🎯 カスタム観点での概要</h2>
+                          <p className="overview">{currentCustomAnalysis.overview}</p>
+                        </>
+                      )}
+
+                      {(currentCustomAnalysis.highlights.length > 0 || currentCustomAnalysis.lowlights.length > 0) && (
+                        <div className="highlights-grid">
+                          <div className="highlight-section">
+                            <h3>✅ ハイライト</h3>
+                            {currentCustomAnalysis.highlights.length > 0 ? (
+                              <ul className="highlight-list positive">
+                                {currentCustomAnalysis.highlights.map((h, i) => (
+                                  <li key={i}>{h}</li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p className="empty">情報なし</p>
+                            )}
+                          </div>
+
+                          <div className="highlight-section">
+                            <h3>⚠️ ローライト</h3>
+                            {currentCustomAnalysis.lowlights.length > 0 ? (
+                              <ul className="highlight-list negative">
+                                {currentCustomAnalysis.lowlights.map((l, i) => (
+                                  <li key={i}>{l}</li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p className="empty">情報なし</p>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {currentCustomAnalysis.analysis && (
+                        <>
+                          <h3>📝 詳細分析</h3>
+                          <div className="custom-analysis">{currentCustomAnalysis.analysis}</div>
+                        </>
+                      )}
+                    </>
+                  ) : (
+                    <div className="empty-analysis">
+                      <p>この期にはまだ「{selectedAxis}」での分析がありません</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </section>
+          )}
         </div>
-      </section>
+
+        {/* 右カラム：チャット */}
+        <div className="detail-right-column">
+          <section className="section chat-section">
+            <h2>💬 質疑応答</h2>
+            <div className="chat-container">
+              <div className="chat-messages" ref={chatMessagesRef}>
+                {messages.length === 0 && !isStreaming ? (
+                  <div className="empty">この決算について質問してみましょう</div>
+                ) : (
+                  <>
+                    {messages.map((msg) => (
+                      <div key={msg.id} className={`chat-message ${msg.role}`}>
+                        <div className="message-role">
+                          {msg.role === 'user' ? 'あなた' : 'AI'}
+                        </div>
+                        <div className="message-content">
+                          {msg.role === 'assistant' ? (
+                            <ReactMarkdown>{msg.content}</ReactMarkdown>
+                          ) : (
+                            msg.content
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    {isStreaming && (
+                      <div className="chat-message assistant">
+                        <div className="message-role">AI</div>
+                        <div className="message-content">
+                          {streamingContent ? (
+                            <ReactMarkdown>{streamingContent}</ReactMarkdown>
+                          ) : (
+                            <span className="loading-dots">考え中...</span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+              <form onSubmit={handleSend} className="chat-form">
+                <input
+                  type="text"
+                  placeholder="決算について質問..."
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  disabled={isStreaming}
+                />
+                <button type="submit" disabled={isStreaming || !message.trim()}>
+                  送信
+                </button>
+              </form>
+            </div>
+          </section>
+        </div>
+      </div>
     </div>
   );
 }

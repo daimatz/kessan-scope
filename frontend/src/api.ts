@@ -97,6 +97,83 @@ export const chatAPI = {
         body: JSON.stringify({ message }),
       }
     ),
+  // ストリーミングでメッセージを送信（イベント別コールバック版）
+  sendMessageStreamV2: (
+    earningsId: string,
+    message: string,
+    callbacks: {
+      onUserMessage: (id: string) => void;
+      onDelta: (content: string) => void;
+      onDone: (id: string) => void;
+      onError: (error: string) => void;
+    }
+  ): Promise<void> => {
+    return new Promise(async (resolve, reject) => {
+      try {
+        const response = await fetch(`${API_BASE}/api/chat/${earningsId}/stream`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ message }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Request failed' }));
+          throw new APIError(errorData.error || 'Request failed');
+        }
+
+        const reader = response.body?.getReader();
+        if (!reader) {
+          throw new APIError('No response body');
+        }
+
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let currentEvent = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            if (line.startsWith('event: ')) {
+              currentEvent = line.slice(7);
+            } else if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6));
+                switch (currentEvent) {
+                  case 'user_message':
+                    callbacks.onUserMessage(data.id);
+                    break;
+                  case 'delta':
+                    callbacks.onDelta(data.content);
+                    break;
+                  case 'done':
+                    callbacks.onDone(data.id);
+                    break;
+                  case 'error':
+                    callbacks.onError(data.error);
+                    break;
+                }
+              } catch {
+                // ignore parse errors
+              }
+              currentEvent = '';
+            }
+          }
+        }
+        resolve();
+      } catch (error) {
+        reject(error);
+      }
+    });
+  },
 };
 
 // Stocks API

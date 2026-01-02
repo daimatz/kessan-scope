@@ -192,14 +192,14 @@ ${customPrompt}
     return sections.join('\n\n');
   }
 
-  // 決算についてのチャット（PDFベース + 過去の経緯）
-  async chatWithPdf(
+  // チャット用のシステムプロンプトとメッセージを構築
+  private buildChatWithPdfParams(
     pdfBuffer: ArrayBuffer,
     currentEarnings: { fiscal_year: string; fiscal_quarter: number; stock_code: string },
     pastEarningsContext: string,
     chatHistory: Array<{ role: 'user' | 'assistant'; content: string }>,
     userMessage: string
-  ): Promise<string> {
+  ): { systemPrompt: string; messages: Anthropic.MessageParam[] } {
     const base64Pdf = this.arrayBufferToBase64(pdfBuffer);
 
     const systemPrompt = `あなたは事業戦略コンサルタントです。決算資料について、事業家目線で質問に答えてください。
@@ -211,6 +211,7 @@ ${customPrompt}
 - 具体的なページ番号や記載箇所を示して回答する
 - セグメント別の戦略的意思決定を読み解く
 - 競争環境の変化と経営の対応を分析する
+- 回答はMarkdown形式で構造化して読みやすくする
 
 【現在の決算】
 ${currentEarnings.stock_code} - ${currentEarnings.fiscal_year}年 Q${currentEarnings.fiscal_quarter}
@@ -255,6 +256,21 @@ ${pastEarningsContext ? `【過去の決算履歴（経緯把握用）】\n${pas
       messages.push({ role: 'user', content: userMessage });
     }
 
+    return { systemPrompt, messages };
+  }
+
+  // 決算についてのチャット（PDFベース + 過去の経緯）- 非ストリーミング
+  async chatWithPdf(
+    pdfBuffer: ArrayBuffer,
+    currentEarnings: { fiscal_year: string; fiscal_quarter: number; stock_code: string },
+    pastEarningsContext: string,
+    chatHistory: Array<{ role: 'user' | 'assistant'; content: string }>,
+    userMessage: string
+  ): Promise<string> {
+    const { systemPrompt, messages } = this.buildChatWithPdfParams(
+      pdfBuffer, currentEarnings, pastEarningsContext, chatHistory, userMessage
+    );
+
     const response = await this.client.messages.create({
       model: this.model,
       max_tokens: 2048,
@@ -268,6 +284,37 @@ ${pastEarningsContext ? `【過去の決算履歴（経緯把握用）】\n${pas
     }
 
     return textBlock.text;
+  }
+
+  // 決算についてのチャット（PDFベース + 過去の経緯）- ストリーミング
+  async *chatWithPdfStream(
+    pdfBuffer: ArrayBuffer,
+    currentEarnings: { fiscal_year: string; fiscal_quarter: number; stock_code: string },
+    pastEarningsContext: string,
+    chatHistory: Array<{ role: 'user' | 'assistant'; content: string }>,
+    userMessage: string
+  ): AsyncGenerator<string, string, unknown> {
+    const { systemPrompt, messages } = this.buildChatWithPdfParams(
+      pdfBuffer, currentEarnings, pastEarningsContext, chatHistory, userMessage
+    );
+
+    const stream = this.client.messages.stream({
+      model: this.model,
+      max_tokens: 2048,
+      system: systemPrompt,
+      messages,
+    });
+
+    let fullContent = '';
+    for await (const event of stream) {
+      if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+        const text = event.delta.text;
+        fullContent += text;
+        yield text;
+      }
+    }
+
+    return fullContent;
   }
 
   // 決算についてのチャット（旧: サマリーベース、フォールバック用）
