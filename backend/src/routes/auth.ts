@@ -193,7 +193,6 @@ auth.get('/me', async (c) => {
       id: user.id,
       email: user.email,
       name: user.name,
-      openai_model: user.openai_model,
     },
   });
 });

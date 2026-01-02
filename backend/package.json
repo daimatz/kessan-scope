@@ -14,10 +14,10 @@
     "db:migrate:local": "wrangler d1 migrations apply stock-watcher-db --local"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.71.2",
     "fflate": "^0.8.2",
     "hono": "^4.6.0",
-    "iconv-lite": "^0.7.1",
-    "openai": "^4.70.0"
+    "iconv-lite": "^0.7.1"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.11.1",

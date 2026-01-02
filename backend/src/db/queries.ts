@@ -137,26 +137,21 @@ export async function linkGoogleAccount(db: D1Database, userId: string, googleId
 }
 
 export async function updateUserSettings(db: D1Database, userId: string, data: {
-  openai_model?: string;
   name?: string;
 }): Promise<void> {
   const updates: string[] = [];
   const values: (string | null)[] = [];
-  
-  if (data.openai_model !== undefined) {
-    updates.push('openai_model = ?');
-    values.push(data.openai_model);
-  }
+
   if (data.name !== undefined) {
     updates.push('name = ?');
     values.push(data.name);
   }
-  
+
   if (updates.length === 0) return;
-  
+
   updates.push('updated_at = CURRENT_TIMESTAMP');
   values.push(userId);
-  
+
   await db.prepare(
     `UPDATE users SET ${updates.join(', ')} WHERE id = ?`
   ).bind(...values).run();
@@ -221,8 +216,8 @@ export async function updateWatchlistItem(db: D1Database, id: string, userId: st
 
 export async function getWatchlistByStockCode(db: D1Database, stockCode: string): Promise<WatchlistItem[]> {
   const result = await db.prepare(
-    'SELECT w.*, u.openai_model FROM watchlist w JOIN users u ON w.user_id = u.id WHERE w.stock_code = ?'
-  ).bind(stockCode).all<WatchlistItem & { openai_model: string }>();
+    'SELECT * FROM watchlist WHERE stock_code = ?'
+  ).bind(stockCode).all<WatchlistItem>();
   return result.results;
 }
 

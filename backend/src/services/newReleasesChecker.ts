@@ -1,6 +1,7 @@
 // TDnetから新着決算をチェックしてインポートする
-import { TdnetClient, isEarningsSummary, determineFiscalYear, determineFiscalQuarter } from './tdnet';
+import { TdnetClient, determineFiscalYear, determineFiscalQuarter } from './tdnet';
 import { createEarnings, getEarnings } from '../db/queries';
+import { analyzeEarningsDocument } from './earningsAnalyzer';
 import type { Env } from '../types';
 
 // 全ウォッチリストユーザーの銘柄をチェック
@@ -60,7 +61,7 @@ export async function checkNewReleases(env: Env): Promise<{ checked: number; imp
     try {
       const announcementDate = doc.pubdate.split(' ')[0];
 
-      await createEarnings(env.DB, {
+      const earnings = await createEarnings(env.DB, {
         stock_code: stockCode,
         fiscal_year: fiscalYear,
         fiscal_quarter: fiscalQuarter,
@@ -70,6 +71,19 @@ export async function checkNewReleases(env: Env): Promise<{ checked: number; imp
 
       imported++;
       console.log(`Imported new release: ${stockCode} ${fiscalYear}Q${fiscalQuarter} - ${doc.title}`);
+
+      // LLMで分析（PDF取得してサマリー生成）
+      const result = await analyzeEarningsDocument(
+        env,
+        earnings.id,
+        stockCode,
+        doc.document_url
+      );
+      if (result) {
+        console.log(
+          `Analyzed: ${stockCode} ${fiscalYear}Q${fiscalQuarter} - ${result.customAnalysisCount} custom analyses`
+        );
+      }
     } catch (error) {
       console.error(`Failed to import ${doc.id}:`, error);
     }

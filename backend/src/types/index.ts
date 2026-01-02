@@ -2,7 +2,7 @@
 export interface Env {
   DB: D1Database;
   IMPORT_QUEUE: Queue<ImportQueueMessage>;
-  OPENAI_API_KEY: string;
+  ANTHROPIC_API_KEY: string;
   MAILERSEND_API_KEY: string;
   MAILERSEND_FROM_EMAIL: string;
   GOOGLE_CLIENT_ID: string;
@@ -25,7 +25,6 @@ export interface User {
   email: string;
   name: string | null;
   password_hash: string | null;
-  openai_model: string;
   email_verified: number;
   email_verification_token: string | null;
   email_verification_expires_at: string | null;

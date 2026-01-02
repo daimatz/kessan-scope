@@ -1,10 +1,10 @@
 import {
   TdnetClient,
-  isEarningsSummary,
   determineFiscalYear,
   determineFiscalQuarter,
 } from './tdnet';
 import { createEarnings, getEarnings } from '../db/queries';
+import { analyzeEarningsDocument } from './earningsAnalyzer';
 import type { Env, ImportQueueMessage } from '../types';
 
 // ウォッチリスト追加時に呼び出す：Queueにメッセージを送信
@@ -70,7 +70,7 @@ export async function processImportBatch(
         // 日付を抽出 (pubdate: "2025-11-05 14:25:00" → "2025-11-05")
         const announcementDate = doc.pubdate.split(' ')[0];
 
-        await createEarnings(env.DB, {
+        const earnings = await createEarnings(env.DB, {
           stock_code: stockCode,
           fiscal_year: fiscalYear,
           fiscal_quarter: fiscalQuarter,
@@ -84,6 +84,19 @@ export async function processImportBatch(
         console.log(
           `Imported: ${stockCode} ${fiscalYear}Q${fiscalQuarter} - ${doc.title}`
         );
+
+        // LLMで分析（PDF取得してサマリー生成）
+        const result = await analyzeEarningsDocument(
+          env,
+          earnings.id,
+          stockCode,
+          doc.document_url
+        );
+        if (result) {
+          console.log(
+            `Analyzed: ${stockCode} ${fiscalYear}Q${fiscalQuarter} - ${result.customAnalysisCount} custom analyses`
+          );
+        }
       } catch (error) {
         console.error(`Failed to create earnings for ${doc.id}:`, error);
       }

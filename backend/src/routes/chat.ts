@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import type { Env, EarningsSummary } from '../types';
-import { getChatMessages, addChatMessage, getEarningsById, getUserById } from '../db/queries';
-import { OpenAIService } from '../services/openai';
+import { getChatMessages, addChatMessage, getEarningsById } from '../db/queries';
+import { ClaudeService } from '../services/claude';
 
 const chat = new Hono<{ Bindings: Env; Variables: { userId: string } }>();
 
@@ -31,12 +31,6 @@ chat.post('/:earningsId', async (c) => {
     return c.json({ error: '決算データが見つかりません' }, 404);
   }
 
-  // ユーザー設定を取得
-  const user = await getUserById(c.env.DB, userId);
-  if (!user) {
-    return c.json({ error: 'ユーザーが見つかりません' }, 404);
-  }
-
   // 既存のチャット履歴を取得
   const existingMessages = await getChatMessages(c.env.DB, userId, earningsId);
 
@@ -62,9 +56,9 @@ chat.post('/:earningsId', async (c) => {
     return c.json({ error: '決算サマリーがありません' }, 400);
   }
 
-  // OpenAIで回答を生成
-  const openai = new OpenAIService(c.env.OPENAI_API_KEY, user.openai_model);
-  const assistantContent = await openai.chat(
+  // Claudeで回答を生成
+  const claude = new ClaudeService(c.env.ANTHROPIC_API_KEY);
+  const assistantContent = await claude.chat(
     summary,
     existingMessages.map(m => ({ role: m.role, content: m.content })),
     body.message
