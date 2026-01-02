@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { earningsAPI, watchlistAPI } from '../api';
+import { earningsAPI, watchlistAPI, getDocumentTypeLabel, getReleaseTypeLabel } from '../api';
 
 export default function StockDetail() {
   const { code } = useParams<{ code: string }>();
@@ -10,9 +10,10 @@ export default function StockDetail() {
   const [promptValue, setPromptValue] = useState('');
   const [message, setMessage] = useState<string | null>(null);
 
+  // リリースベースのAPIを使用
   const { data, isLoading, error } = useQuery({
-    queryKey: ['stock', code],
-    queryFn: () => earningsAPI.getByStock(code!),
+    queryKey: ['stockReleases', code],
+    queryFn: () => earningsAPI.getReleasesByStock(code!),
     enabled: !!code,
   });
 
@@ -20,7 +21,7 @@ export default function StockDetail() {
     mutationFn: (newPrompt: string) =>
       watchlistAPI.update(data!.watchlist_id!, { custom_prompt: newPrompt }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['stock', code] });
+      queryClient.invalidateQueries({ queryKey: ['stockReleases', code] });
       setEditingPrompt(false);
     },
   });
@@ -130,39 +131,44 @@ export default function StockDetail() {
       </section>
 
       <section className="section">
-        <h2>決算資料一覧 ({data.earnings.length}件)</h2>
-        {data.earnings.length === 0 ? (
-          <div className="empty-state">決算資料がありません</div>
+        <h2>決算発表一覧 ({data.releases.length}件)</h2>
+        {data.releases.length === 0 ? (
+          <div className="empty-state">決算発表がありません</div>
         ) : (
           <div className="earnings-table">
             <div className="earnings-table-header">
               <span className="col-period">期間</span>
-              <span className="col-date">発表日</span>
-              <span className="col-title">タイトル</span>
+              <span className="col-type">種類</span>
+              <span className="col-docs">資料</span>
               <span className="col-status">ステータス</span>
             </div>
-            {data.earnings.map((e) => (
+            {data.releases.map((r) => (
               <Link
-                key={e.id}
-                to={`/earnings/${e.id}`}
+                key={r.id}
+                to={`/releases/${r.id}`}
                 className="earnings-table-row"
               >
                 <span className="col-period">
-                  {e.fiscal_year}年 Q{e.fiscal_quarter}
+                  {r.fiscal_year}年{r.fiscal_quarter ? ` Q${r.fiscal_quarter}` : ''}
                 </span>
-                <span className="col-date">{e.announcement_date}</span>
-                <span className="col-title">
-                  {e.document_title || '決算資料'}
+                <span className="col-type">
+                  {getReleaseTypeLabel(r.release_type)}
+                </span>
+                <span className="col-docs">
+                  {r.documents.map((d) => (
+                    <span key={d.id} className="doc-badge">
+                      {getDocumentTypeLabel(d.document_type).slice(0, 4)}
+                    </span>
+                  ))}
                 </span>
                 <span className="col-status">
-                  {e.has_pdf && <span className="badge badge-pdf">PDF</span>}
-                  {e.has_summary && <span className="badge badge-summary">要約</span>}
-                  {e.has_custom_analysis && (
+                  {r.has_summary && <span className="badge badge-summary">要約</span>}
+                  {r.has_custom_analysis && (
                     <span className="badge badge-analysis">分析済</span>
                   )}
-                  {e.analysis_history_count > 0 && (
+                  {r.analysis_history_count > 0 && (
                     <span className="badge badge-history">
-                      履歴{e.analysis_history_count}
+                      履歴{r.analysis_history_count}
                     </span>
                   )}
                 </span>

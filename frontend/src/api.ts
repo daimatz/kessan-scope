@@ -78,11 +78,19 @@ export const watchlistAPI = {
 // Earnings API
 export const earningsAPI = {
   getAll: () => fetchAPI<{ earnings: Earnings[] }>('/api/earnings'),
+  getAllReleases: () => fetchAPI<{ releases: DashboardRelease[] }>('/api/earnings/releases'),
   getById: (id: string) =>
     fetchAPI<EarningsDetailResponse>(`/api/earnings/${id}`),
   getByStock: (code: string) =>
     fetchAPI<StockDetailResponse>(`/api/earnings/stock/${code}`),
   getPdfUrl: (id: string) => `${API_BASE}/api/earnings/${id}/pdf`,
+  // Release API (新規)
+  getReleaseById: (releaseId: string) =>
+    fetchAPI<ReleaseDetailResponse>(`/api/earnings/release/${releaseId}`),
+  getReleasesByStock: (code: string) =>
+    fetchAPI<StockReleasesResponse>(`/api/earnings/releases/stock/${code}`),
+  getReleasePdfUrl: (releaseId: string, documentType: string) =>
+    `${API_BASE}/api/earnings/release/${releaseId}/pdf/${documentType}`,
 };
 
 // Chat API
@@ -108,73 +116,95 @@ export const chatAPI = {
       onError: (error: string) => void;
     }
   ): Promise<void> => {
-    return new Promise(async (resolve, reject) => {
-      try {
-        const response = await fetch(`${API_BASE}/api/chat/${earningsId}/stream`, {
-          method: 'POST',
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ message }),
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ error: 'Request failed' }));
-          throw new APIError(errorData.error || 'Request failed');
-        }
-
-        const reader = response.body?.getReader();
-        if (!reader) {
-          throw new APIError('No response body');
-        }
-
-        const decoder = new TextDecoder();
-        let buffer = '';
-        let currentEvent = '';
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || '';
-
-          for (const line of lines) {
-            if (line.startsWith('event: ')) {
-              currentEvent = line.slice(7);
-            } else if (line.startsWith('data: ')) {
-              try {
-                const data = JSON.parse(line.slice(6));
-                switch (currentEvent) {
-                  case 'user_message':
-                    callbacks.onUserMessage(data.id);
-                    break;
-                  case 'delta':
-                    callbacks.onDelta(data.content);
-                    break;
-                  case 'done':
-                    callbacks.onDone(data.id);
-                    break;
-                  case 'error':
-                    callbacks.onError(data.error);
-                    break;
-                }
-              } catch {
-                // ignore parse errors
-              }
-              currentEvent = '';
-            }
-          }
-        }
-        resolve();
-      } catch (error) {
-        reject(error);
-      }
-    });
+    return streamSSE(`${API_BASE}/api/chat/${earningsId}/stream`, message, callbacks);
+  },
+  // Release Chat API (新規)
+  getReleaseMessages: (releaseId: string) =>
+    fetchAPI<{ messages: ChatMessage[] }>(`/api/chat/release/${releaseId}`),
+  sendReleaseMessageStream: (
+    releaseId: string,
+    message: string,
+    callbacks: {
+      onUserMessage: (id: string) => void;
+      onDelta: (content: string) => void;
+      onDone: (id: string) => void;
+      onError: (error: string) => void;
+    }
+  ): Promise<void> => {
+    return streamSSE(`${API_BASE}/api/chat/release/${releaseId}/stream`, message, callbacks);
   },
 };
+
+// SSE ストリーミング共通関数
+async function streamSSE(
+  url: string,
+  message: string,
+  callbacks: {
+    onUserMessage: (id: string) => void;
+    onDelta: (content: string) => void;
+    onDone: (id: string) => void;
+    onError: (error: string) => void;
+  }
+): Promise<void> {
+  const response = await fetch(url, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ message }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ error: 'Request failed' }));
+    throw new APIError(errorData.error || 'Request failed');
+  }
+
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new APIError('No response body');
+  }
+
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let currentEvent = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
+
+    for (const line of lines) {
+      if (line.startsWith('event: ')) {
+        currentEvent = line.slice(7);
+      } else if (line.startsWith('data: ')) {
+        try {
+          const data = JSON.parse(line.slice(6));
+          switch (currentEvent) {
+            case 'user_message':
+              callbacks.onUserMessage(data.id);
+              break;
+            case 'delta':
+              callbacks.onDelta(data.content);
+              break;
+            case 'done':
+              callbacks.onDone(data.id);
+              break;
+            case 'error':
+              callbacks.onError(data.error);
+              break;
+          }
+        } catch {
+          // ignore parse errors
+        }
+        currentEvent = '';
+      }
+    }
+  }
+}
 
 // Stocks API
 export const stocksAPI = {
@@ -322,7 +352,127 @@ export interface ChatMessage {
   id: string;
   user_id: string;
   earnings_id: string;
+  release_id?: string;
   role: 'user' | 'assistant';
   content: string;
   created_at: string;
+}
+
+// ============================================
+// EarningsRelease 型定義（新規）
+// ============================================
+
+export type ReleaseType = 'quarterly_earnings' | 'growth_potential';
+export type DocumentType = 'earnings_summary' | 'earnings_presentation' | 'growth_potential';
+
+// ダッシュボード用のリリース型
+export interface DashboardRelease {
+  id: string;
+  release_type: ReleaseType;
+  stock_code: string;
+  stock_name: string | null;
+  fiscal_year: string;
+  fiscal_quarter: number | null;
+  has_summary: boolean;
+  has_custom_analysis: boolean;
+  notified_at: string | null;
+  document_count: number;
+  documents: Array<{
+    id: string;
+    document_type: DocumentType;
+  }>;
+}
+
+export interface ReleaseDocument {
+  id: string;
+  document_type: DocumentType;
+  document_title: string | null;
+  r2_key: string | null;
+  announcement_date: string;
+}
+
+export interface ReleaseDetail {
+  id: string;
+  release_type: ReleaseType;
+  stock_code: string;
+  fiscal_year: string;
+  fiscal_quarter: number | null;
+  summary: EarningsSummary | null;
+  highlights: string[];
+  lowlights: string[];
+  documents: ReleaseDocument[];
+}
+
+export interface ReleaseNavItem {
+  id: string;
+  fiscal_year: string;
+  fiscal_quarter: number | null;
+  release_type: ReleaseType;
+}
+
+export interface AnalysisHistoryItem {
+  prompt: string;
+  analysis: string;
+  created_at: string;
+}
+
+export interface ReleaseDetailResponse {
+  release: ReleaseDetail;
+  customAnalysis: CustomAnalysisSummary | null;
+  customPromptUsed: string | null;
+  notifiedAt: string | null;
+  analysisHistory: AnalysisHistoryItem[];
+  prevRelease: ReleaseNavItem | null;
+  nextRelease: ReleaseNavItem | null;
+}
+
+export interface ReleaseListItem {
+  id: string;
+  release_type: ReleaseType;
+  fiscal_year: string;
+  fiscal_quarter: number | null;
+  has_summary: boolean;
+  has_custom_analysis: boolean;
+  analysis_history_count: number;
+  document_count: number;
+  documents: Array<{
+    id: string;
+    document_type: DocumentType;
+    document_title: string | null;
+    has_pdf: boolean;
+  }>;
+}
+
+export interface StockReleasesResponse {
+  stock_code: string;
+  stock_name: string | null;
+  custom_prompt: string | null;
+  watchlist_id: string | null;
+  releases: ReleaseListItem[];
+}
+
+// ドキュメントタイプの日本語ラベル
+export function getDocumentTypeLabel(type: DocumentType): string {
+  switch (type) {
+    case 'earnings_summary':
+      return '決算短信';
+    case 'earnings_presentation':
+      return '決算説明資料';
+    case 'growth_potential':
+      return '成長可能性資料';
+    default:
+      return '資料';
+  }
+}
+
+// リリースタイプの日本語ラベル
+export function getReleaseTypeLabel(type: ReleaseType): string {
+  switch (type) {
+    case 'quarterly_earnings':
+      return '決算発表';
+    case 'growth_potential':
+      return '成長可能性';
+    default:
+      return '発表';
+  }
 }

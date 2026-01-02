@@ -1,24 +1,24 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { earningsAPI, type Earnings } from '../api';
+import { earningsAPI, getDocumentTypeLabel, getReleaseTypeLabel, type DashboardRelease } from '../api';
 
 // 銘柄ごとにグループ化
-function groupByStock(earnings: Earnings[]): Map<string, Earnings[]> {
-  const grouped = new Map<string, Earnings[]>();
-  for (const e of earnings) {
-    const key = e.stock_code;
+function groupByStock(releases: DashboardRelease[]): Map<string, DashboardRelease[]> {
+  const grouped = new Map<string, DashboardRelease[]>();
+  for (const r of releases) {
+    const key = r.stock_code;
     if (!grouped.has(key)) {
       grouped.set(key, []);
     }
-    grouped.get(key)!.push(e);
+    grouped.get(key)!.push(r);
   }
   return grouped;
 }
 
 export default function Dashboard() {
   const { data, isLoading, error } = useQuery({
-    queryKey: ['earnings'],
-    queryFn: earningsAPI.getAll,
+    queryKey: ['releases'],
+    queryFn: earningsAPI.getAllReleases,
   });
 
   if (isLoading) {
@@ -39,14 +39,14 @@ export default function Dashboard() {
     );
   }
 
-  const earnings = data?.earnings || [];
-  const grouped = groupByStock(earnings);
+  const releases = data?.releases || [];
+  const grouped = groupByStock(releases);
 
   return (
     <div className="page">
       <h1>ダッシュボード</h1>
 
-      {earnings.length === 0 ? (
+      {releases.length === 0 ? (
         <div className="empty-state">
           <p>決算データがありません</p>
           <p>
@@ -56,9 +56,9 @@ export default function Dashboard() {
         </div>
       ) : (
         <div className="stock-groups">
-          {Array.from(grouped.entries()).map(([stockCode, stockEarnings]) => {
-            const latestEarnings = stockEarnings[0];
-            const stockName = latestEarnings.stock_name || '名称未設定';
+          {Array.from(grouped.entries()).map(([stockCode, stockReleases]) => {
+            const latestRelease = stockReleases[0];
+            const stockName = latestRelease.stock_name || '名称未設定';
 
             return (
               <section key={stockCode} className="stock-group">
@@ -67,21 +67,30 @@ export default function Dashboard() {
                     <span className="stock-code">{stockCode}</span>
                     <span className="stock-name">{stockName}</span>
                   </Link>
-                  <span className="stock-count">{stockEarnings.length}件</span>
+                  <span className="stock-count">{stockReleases.length}件</span>
                 </div>
                 <div className="earnings-list">
-                  {stockEarnings.slice(0, 3).map((e) => (
-                    <Link key={e.id} to={`/earnings/${e.id}`} className="earnings-item">
+                  {stockReleases.slice(0, 3).map((r) => (
+                    <Link key={r.id} to={`/releases/${r.id}`} className="earnings-item">
                       <span className="earnings-period">
-                        {e.fiscal_year}年 Q{e.fiscal_quarter}
+                        {r.fiscal_year}年{r.fiscal_quarter ? ` Q${r.fiscal_quarter}` : ''}
                       </span>
-                      <span className="earnings-date">{e.announcement_date}</span>
-                      {e.notified_at && <span className="earnings-notified">✅</span>}
+                      <span className="release-type-badge">
+                        {getReleaseTypeLabel(r.release_type)}
+                      </span>
+                      <span className="document-badges">
+                        {r.documents.map((d) => (
+                          <span key={d.id} className="doc-badge">
+                            {getDocumentTypeLabel(d.document_type).slice(0, 2)}
+                          </span>
+                        ))}
+                      </span>
+                      {r.notified_at && <span className="earnings-notified">✅</span>}
                     </Link>
                   ))}
-                  {stockEarnings.length > 3 && (
+                  {stockReleases.length > 3 && (
                     <Link to={`/stocks/${stockCode}`} className="more-link">
-                      他 {stockEarnings.length - 3} 件を見る →
+                      他 {stockReleases.length - 3} 件を見る →
                     </Link>
                   )}
                 </div>

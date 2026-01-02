@@ -197,6 +197,56 @@ earnings.get('/stock/:code', async (c) => {
 // EarningsRelease ルート（新規）
 // ============================================
 
+// リリース一覧（ダッシュボード用）
+earnings.get('/releases', async (c) => {
+  const userId = c.get('userId');
+
+  // ユーザーのウォッチリストにある銘柄のリリースを取得
+  const result = await c.env.DB.prepare(`
+    SELECT er.*, w.stock_name, urea.custom_analysis, urea.notified_at
+    FROM earnings_release er
+    INNER JOIN watchlist w ON er.stock_code = w.stock_code AND w.user_id = ?
+    LEFT JOIN user_release_analysis urea ON er.id = urea.release_id AND urea.user_id = ?
+    ORDER BY er.fiscal_year DESC, er.fiscal_quarter DESC NULLS LAST
+    LIMIT 50
+  `).bind(userId, userId).all();
+
+  // 各リリースのドキュメント数を取得
+  const releasesWithDocs = await Promise.all(
+    (result.results as Array<{
+      id: string;
+      release_type: string;
+      stock_code: string;
+      stock_name: string | null;
+      fiscal_year: string;
+      fiscal_quarter: number | null;
+      summary: string | null;
+      custom_analysis: string | null;
+      notified_at: string | null;
+    }>).map(async (r) => {
+      const documents = await getDocumentsForRelease(c.env.DB, r.id);
+      return {
+        id: r.id,
+        release_type: r.release_type,
+        stock_code: r.stock_code,
+        stock_name: r.stock_name,
+        fiscal_year: r.fiscal_year,
+        fiscal_quarter: r.fiscal_quarter,
+        has_summary: !!r.summary,
+        has_custom_analysis: !!r.custom_analysis,
+        notified_at: r.notified_at,
+        document_count: documents.length,
+        documents: documents.map(d => ({
+          id: d.id,
+          document_type: d.document_type,
+        })),
+      };
+    })
+  );
+
+  return c.json({ releases: releasesWithDocs });
+});
+
 // リリース詳細（決算短信 + プレゼンのセット）
 earnings.get('/release/:releaseId', async (c) => {
   const userId = c.get('userId');
