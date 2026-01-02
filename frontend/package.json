@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@stock-watcher/shared": "*",
     "@tanstack/react-query": "^5.90.16",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",

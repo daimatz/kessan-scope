@@ -1,3 +1,77 @@
+// 共有型を import
+import {
+  type User as SharedUser,
+  type WatchlistItem,
+  type Stock,
+  type EarningsSummary,
+  type CustomAnalysisSummary,
+  type ChatMessage,
+  type EarningsDetail,
+  type EarningsNavItem,
+  type AnalysisByPrompt,
+  type EarningsDetailResponse,
+  type ReleaseDocument,
+  type ReleaseDetail,
+  type ReleaseNavItem,
+  type AnalysisHistoryItem,
+  type ReleaseDetailResponse,
+  type DashboardRelease,
+  type ReleaseListItem,
+  type StockReleasesResponse,
+  type EarningsHistory,
+  type StockDetailResponse,
+  type ReleaseType,
+  type DocumentType,
+  parseCustomAnalysis,
+  getDocumentTypeLabel,
+  getReleaseTypeLabel,
+} from '@stock-watcher/shared';
+
+// 型を re-export
+export type {
+  WatchlistItem,
+  Stock,
+  EarningsSummary,
+  CustomAnalysisSummary,
+  ChatMessage,
+  EarningsDetail,
+  EarningsNavItem,
+  AnalysisByPrompt,
+  EarningsDetailResponse,
+  ReleaseDocument,
+  ReleaseDetail,
+  ReleaseNavItem,
+  AnalysisHistoryItem,
+  ReleaseDetailResponse,
+  DashboardRelease,
+  ReleaseListItem,
+  StockReleasesResponse,
+  EarningsHistory,
+  StockDetailResponse,
+  ReleaseType,
+  DocumentType,
+};
+
+// 関数を re-export
+export { parseCustomAnalysis, getDocumentTypeLabel, getReleaseTypeLabel };
+
+// Frontend 固有の User 型（openai_model を含む）
+export interface User extends SharedUser {
+  openai_model: string;
+}
+
+// ダッシュボード用の Earnings 型（frontend 固有）
+export interface Earnings {
+  id: string;
+  stock_code: string;
+  stock_name: string | null;
+  fiscal_year: string;
+  fiscal_quarter: number;
+  announcement_date: string;
+  custom_analysis: string | null;
+  notified_at: string | null;
+}
+
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
 export class APIError extends Error {
@@ -212,13 +286,6 @@ export const stocksAPI = {
     fetchAPI<{ stocks: Stock[] }>(`/api/stocks/search?q=${encodeURIComponent(query)}`),
 };
 
-export interface Stock {
-  code: string;
-  name: string;
-  market: string | null;
-  sector: string | null;
-}
-
 // Users API
 export const usersAPI = {
   updateSettings: (data: { openai_model?: string; name?: string }) =>
@@ -227,253 +294,3 @@ export const usersAPI = {
       body: JSON.stringify(data),
     }),
 };
-
-// Types
-export interface User {
-  id: string;
-  email: string;
-  name: string | null;
-  openai_model: string;
-}
-
-export interface WatchlistItem {
-  id: string;
-  user_id: string;
-  stock_code: string;
-  stock_name: string | null;
-  custom_prompt: string | null;
-  created_at: string;
-}
-
-export interface Earnings {
-  id: string;
-  stock_code: string;
-  stock_name: string | null;
-  fiscal_year: string;
-  fiscal_quarter: number;
-  announcement_date: string;
-  custom_analysis: string | null;
-  notified_at: string | null;
-}
-
-export interface EarningsDetail {
-  id: string;
-  stock_code: string;
-  fiscal_year: string;
-  fiscal_quarter: number;
-  announcement_date: string;
-  document_title: string | null;
-  r2_key: string | null;
-  summary: EarningsSummary | null;
-  highlights: string[];
-  lowlights: string[];
-}
-
-export interface AnalysisByPrompt {
-  prompt: string;
-  analysis: string;
-  created_at: string;
-}
-
-export interface EarningsNavItem {
-  id: string;
-  fiscal_year: string;
-  fiscal_quarter: number;
-}
-
-export interface EarningsDetailResponse {
-  earnings: EarningsDetail;
-  notifiedAt: string | null;
-  // 銘柄で使用されたすべてのユニークなプロンプト（分析軸）
-  availablePrompts: string[];
-  // この決算資料に対するすべての分析（プロンプトごと）
-  analysesByPrompt: AnalysisByPrompt[];
-  prevEarnings: EarningsNavItem | null;
-  nextEarnings: EarningsNavItem | null;
-}
-
-export interface EarningsSummary {
-  overview: string;
-  highlights: string[];
-  lowlights: string[];
-  keyMetrics: {
-    revenue: string;
-    operatingIncome: string;
-    netIncome: string;
-    yoyGrowth: string;
-  };
-}
-
-// カスタムプロンプト分析の構造化結果
-export interface CustomAnalysisSummary {
-  overview: string;      // カスタム観点での概要
-  highlights: string[];  // カスタム観点でのハイライト
-  lowlights: string[];   // カスタム観点でのローライト
-  analysis: string;      // 詳細分析
-}
-
-// JSON文字列からCustomAnalysisSummaryをパース
-export function parseCustomAnalysis(jsonString: string | null): CustomAnalysisSummary | null {
-  if (!jsonString) return null;
-  try {
-    return JSON.parse(jsonString) as CustomAnalysisSummary;
-  } catch {
-    // 古い形式（プレーンテキスト）の場合はanalysisフィールドのみ
-    return {
-      overview: '',
-      highlights: [],
-      lowlights: [],
-      analysis: jsonString,
-    };
-  }
-}
-
-export interface EarningsHistory {
-  id: string;
-  fiscal_year: string;
-  fiscal_quarter: number;
-  announcement_date: string;
-  document_title: string | null;
-  has_summary: boolean;
-  has_pdf: boolean;
-  has_custom_analysis: boolean;
-  analysis_history_count: number;
-}
-
-export interface StockDetailResponse {
-  stock_code: string;
-  stock_name: string | null;
-  custom_prompt: string | null;
-  watchlist_id: string | null;
-  earnings: EarningsHistory[];
-}
-
-export interface ChatMessage {
-  id: string;
-  user_id: string;
-  earnings_id: string;
-  release_id?: string;
-  role: 'user' | 'assistant';
-  content: string;
-  created_at: string;
-}
-
-// ============================================
-// EarningsRelease 型定義（新規）
-// ============================================
-
-export type ReleaseType = 'quarterly_earnings' | 'growth_potential';
-export type DocumentType = 'earnings_summary' | 'earnings_presentation' | 'growth_potential';
-
-// ダッシュボード用のリリース型
-export interface DashboardRelease {
-  id: string;
-  release_type: ReleaseType;
-  stock_code: string;
-  stock_name: string | null;
-  fiscal_year: string;
-  fiscal_quarter: number | null;
-  has_summary: boolean;
-  has_custom_analysis: boolean;
-  notified_at: string | null;
-  document_count: number;
-  documents: Array<{
-    id: string;
-    document_type: DocumentType;
-  }>;
-}
-
-export interface ReleaseDocument {
-  id: string;
-  document_type: DocumentType;
-  document_title: string | null;
-  r2_key: string | null;
-  announcement_date: string;
-}
-
-export interface ReleaseDetail {
-  id: string;
-  release_type: ReleaseType;
-  stock_code: string;
-  stock_name: string | null;
-  fiscal_year: string;
-  fiscal_quarter: number | null;
-  summary: EarningsSummary | null;
-  highlights: string[];
-  lowlights: string[];
-  documents: ReleaseDocument[];
-}
-
-export interface ReleaseNavItem {
-  id: string;
-  fiscal_year: string;
-  fiscal_quarter: number | null;
-  release_type: ReleaseType;
-}
-
-export interface AnalysisHistoryItem {
-  prompt: string;
-  analysis: string;
-  created_at: string;
-}
-
-export interface ReleaseDetailResponse {
-  release: ReleaseDetail;
-  customAnalysis: CustomAnalysisSummary | null;
-  customPromptUsed: string | null;
-  notifiedAt: string | null;
-  analysisHistory: AnalysisHistoryItem[];
-  prevRelease: ReleaseNavItem | null;
-  nextRelease: ReleaseNavItem | null;
-}
-
-export interface ReleaseListItem {
-  id: string;
-  release_type: ReleaseType;
-  fiscal_year: string;
-  fiscal_quarter: number | null;
-  has_summary: boolean;
-  has_custom_analysis: boolean;
-  analysis_history_count: number;
-  document_count: number;
-  documents: Array<{
-    id: string;
-    document_type: DocumentType;
-    document_title: string | null;
-    has_pdf: boolean;
-  }>;
-}
-
-export interface StockReleasesResponse {
-  stock_code: string;
-  stock_name: string | null;
-  custom_prompt: string | null;
-  watchlist_id: string | null;
-  releases: ReleaseListItem[];
-}
-
-// ドキュメントタイプの日本語ラベル
-export function getDocumentTypeLabel(type: DocumentType): string {
-  switch (type) {
-    case 'earnings_summary':
-      return '決算短信';
-    case 'earnings_presentation':
-      return '決算説明資料';
-    case 'growth_potential':
-      return '成長可能性資料';
-    default:
-      return '資料';
-  }
-}
-
-// リリースタイプの日本語ラベル
-export function getReleaseTypeLabel(type: ReleaseType): string {
-  switch (type) {
-    case 'quarterly_earnings':
-      return '決算発表';
-    case 'growth_potential':
-      return '成長可能性';
-    default:
-      return '発表';
-  }
-}

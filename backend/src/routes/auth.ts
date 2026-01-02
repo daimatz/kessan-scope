@@ -3,6 +3,7 @@ import { setCookie, getCookie, deleteCookie } from 'hono/cookie';
 import type { Env, GoogleUserInfo, JWTPayload } from '../types';
 import { getUserByGoogleId, createUser, getUserById, getUserByEmail, createUserWithPassword, verifyPassword, setUserPassword, linkGoogleAccount, verifyEmailToken, regenerateVerificationToken, deleteUser } from '../db/queries';
 import { MailerSendClient } from '../services/mailersend';
+import { UserSchema } from '@stock-watcher/shared';
 
 const auth = new Hono<{ Bindings: Env }>();
 
@@ -188,13 +189,8 @@ auth.get('/me', async (c) => {
     return c.json({ user: null });
   }
   
-  return c.json({
-    user: {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-    },
-  });
+  // zod で API レスポンス用にフィルタリング
+  return c.json({ user: UserSchema.parse(user) });
 });
 
 // ログアウト
@@ -344,17 +340,17 @@ auth.post('/login', async (c) => {
     maxAge: 60 * 60 * 24 * 7,
   });
 
-  return c.json({
-    user: {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-    },
-  });
+  // zod で API レスポンス用にフィルタリング
+  return c.json({ user: UserSchema.parse(user) });
 });
 
-// 開発用: テストユーザーでログイン
+// 開発用: テストユーザーでログイン（本番環境では無効）
 auth.get('/dev-login', async (c) => {
+  // 本番環境では無効化
+  if (c.env.ENVIRONMENT === 'production') {
+    return c.json({ error: 'Not found' }, 404);
+  }
+
   // テストユーザーを検索または作成
   let user = await getUserByGoogleId(c.env.DB, 'dev-user-123');
   if (!user) {
@@ -364,7 +360,7 @@ auth.get('/dev-login', async (c) => {
       name: '開発ユーザー',
     });
   }
-  
+
   // JWTを作成
   const jwt = await createJWT(
     {
@@ -374,14 +370,14 @@ auth.get('/dev-login', async (c) => {
     },
     c.env.JWT_SECRET
   );
-  
+
   setCookie(c, 'auth_token', jwt, {
     httpOnly: true,
     secure: false, // 開発環境用
     sameSite: 'Lax',
     maxAge: 60 * 60 * 24 * 7,
   });
-  
+
   return c.redirect(c.env.FRONTEND_URL);
 });
 

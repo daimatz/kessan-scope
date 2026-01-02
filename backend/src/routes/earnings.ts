@@ -1,6 +1,13 @@
 import { Hono } from 'hono';
 import type { Env, EarningsSummary } from '../types';
 import {
+  DashboardReleaseSchema,
+  StockReleasesResponseSchema,
+  ReleaseDetailResponseSchema,
+  StockDetailResponseSchema,
+  EarningsDetailResponseSchema,
+} from '@stock-watcher/shared';
+import {
   getEarnings,
   getEarningsById,
   getUserEarningsAnalysis,
@@ -13,6 +20,8 @@ import {
   getDocumentsForRelease,
   getUserAnalysisByRelease,
   getCustomAnalysisHistoryForRelease,
+  getEarningsForDashboard,
+  getReleasesForDashboard,
 } from '../db/queries';
 
 const earnings = new Hono<{ Bindings: Env; Variables: { userId: string } }>();
@@ -24,18 +33,8 @@ const earnings = new Hono<{ Bindings: Env; Variables: { userId: string } }>();
 // 決算一覧（ウォッチリストの銘柄のみ）- 旧API
 earnings.get('/', async (c) => {
   const userId = c.get('userId');
-
-  // ユーザーのウォッチリストにある銘柄の決算を取得
-  const result = await c.env.DB.prepare(`
-    SELECT e.*, w.stock_name, uea.custom_analysis, uea.notified_at
-    FROM earnings e
-    INNER JOIN watchlist w ON e.stock_code = w.stock_code AND w.user_id = ?
-    LEFT JOIN user_earnings_analysis uea ON e.id = uea.earnings_id AND uea.user_id = ?
-    ORDER BY e.announcement_date DESC
-    LIMIT 50
-  `).bind(userId, userId).all();
-
-  return c.json({ earnings: result.results });
+  const earningsList = await getEarningsForDashboard(c.env.DB, userId);
+  return c.json({ earnings: earningsList });
 });
 
 // ============================================
@@ -48,36 +47,13 @@ earnings.get('/releases', async (c) => {
   const userId = c.get('userId');
 
   // ユーザーのウォッチリストにある銘柄のリリースを取得
-  const result = await c.env.DB.prepare(`
-    SELECT er.*, w.stock_name
-    FROM earnings_release er
-    INNER JOIN watchlist w ON er.stock_code = w.stock_code AND w.user_id = ?
-    ORDER BY er.fiscal_year DESC, er.fiscal_quarter DESC NULLS LAST
-    LIMIT 50
-  `).bind(userId).all();
+  const releases = await getReleasesForDashboard(c.env.DB, userId);
 
   // 各リリースのドキュメント数とユーザー分析を取得
   const releasesWithDocs = await Promise.all(
-    (result.results as Array<{
-      id: string;
-      release_type: string;
-      stock_code: string;
-      stock_name: string | null;
-      fiscal_year: string;
-      fiscal_quarter: number | null;
-      summary: string | null;
-    }>).map(async (r) => {
+    releases.map(async (r) => {
       const documents = await getDocumentsForRelease(c.env.DB, r.id);
-
-      // ユーザー分析を別クエリで取得（テーブルがない場合はnull）
-      let userAnalysis: { custom_analysis: string | null; notified_at: string | null } | null = null;
-      try {
-        userAnalysis = await c.env.DB.prepare(
-          'SELECT custom_analysis, notified_at FROM user_release_analysis WHERE user_id = ? AND release_id = ?'
-        ).bind(userId, r.id).first();
-      } catch {
-        // テーブルがまだない場合は無視
-      }
+      const userAnalysis = await getUserAnalysisByRelease(c.env.DB, userId, r.id);
 
       return {
         id: r.id,
@@ -98,7 +74,8 @@ earnings.get('/releases', async (c) => {
     })
   );
 
-  return c.json({ releases: releasesWithDocs });
+  // zod で API レスポンス用にフィルタリング
+  return c.json({ releases: releasesWithDocs.map(r => DashboardReleaseSchema.parse(r)) });
 });
 
 // 銘柄別リリース履歴
@@ -143,13 +120,14 @@ earnings.get('/releases/stock/:code', async (c) => {
     })
   );
 
-  return c.json({
+  // zod で API レスポンス用にフィルタリング
+  return c.json(StockReleasesResponseSchema.parse({
     stock_code: code,
     stock_name: watchlistItem?.stock_name || null,
     custom_prompt: watchlistItem?.custom_prompt || null,
     watchlist_id: watchlistItem?.id || null,
     releases: releasesWithInfo,
-  });
+  }));
 });
 
 // リリース詳細（決算短信 + プレゼンのセット）
@@ -220,7 +198,8 @@ earnings.get('/release/:releaseId', async (c) => {
   const nextRelease = currentIndex > 0 ? allReleases[currentIndex - 1] : null;
   const prevRelease = currentIndex < allReleases.length - 1 ? allReleases[currentIndex + 1] : null;
 
-  return c.json({
+  // zod で API レスポンス用にフィルタリング
+  return c.json(ReleaseDetailResponseSchema.parse({
     release: {
       id: release.id,
       release_type: release.release_type,
@@ -259,17 +238,25 @@ earnings.get('/release/:releaseId', async (c) => {
       fiscal_quarter: nextRelease.fiscal_quarter,
       release_type: nextRelease.release_type,
     } : null,
-  });
+  }));
 });
 
 // リリース内の個別PDF取得
 earnings.get('/release/:releaseId/pdf/:documentType', async (c) => {
+  const userId = c.get('userId');
   const releaseId = c.req.param('releaseId');
   const documentType = c.req.param('documentType');
 
   const release = await getEarningsReleaseById(c.env.DB, releaseId);
   if (!release) {
     return c.json({ error: '決算発表が見つかりません' }, 404);
+  }
+
+  // 認可チェック: ユーザーのウォッチリストに含まれているか確認
+  const watchlist = await getWatchlist(c.env.DB, userId);
+  const hasAccess = watchlist.some(w => w.stock_code === release.stock_code);
+  if (!hasAccess) {
+    return c.json({ error: 'この銘柄へのアクセス権がありません' }, 403);
   }
 
   const documents = await getDocumentsForRelease(c.env.DB, releaseId);
@@ -336,13 +323,14 @@ earnings.get('/stock/:code', async (c) => {
     })
   );
 
-  return c.json({
+  // zod で API レスポンス用にフィルタリング
+  return c.json(StockDetailResponseSchema.parse({
     stock_code: code,
     stock_name: watchlistItem?.stock_name || null,
     custom_prompt: watchlistItem?.custom_prompt || null,
     watchlist_id: watchlistItem?.id || null,
     earnings: earningsWithAnalysis,
-  });
+  }));
 });
 
 // 決算詳細（旧API）
@@ -400,7 +388,8 @@ earnings.get('/:id', async (c) => {
     }
   }
 
-  return c.json({
+  // zod で API レスポンス用にフィルタリング
+  return c.json(EarningsDetailResponseSchema.parse({
     earnings: {
       id: earningsData.id,
       stock_code: earningsData.stock_code,
@@ -433,16 +422,24 @@ earnings.get('/:id', async (c) => {
       fiscal_year: nextEarnings.fiscal_year,
       fiscal_quarter: nextEarnings.fiscal_quarter,
     } : null,
-  });
+  }));
 });
 
 // PDF取得（旧API）
 earnings.get('/:id/pdf', async (c) => {
+  const userId = c.get('userId');
   const id = c.req.param('id');
 
   const earningsData = await getEarningsById(c.env.DB, id);
   if (!earningsData || !earningsData.r2_key) {
     return c.json({ error: 'PDFが見つかりません' }, 404);
+  }
+
+  // 認可チェック: ユーザーのウォッチリストに含まれているか確認
+  const watchlist = await getWatchlist(c.env.DB, userId);
+  const hasAccess = watchlist.some(w => w.stock_code === earningsData.stock_code);
+  if (!hasAccess) {
+    return c.json({ error: 'この銘柄へのアクセス権がありません' }, 403);
   }
 
   // R2からPDFを取得

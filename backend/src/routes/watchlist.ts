@@ -9,6 +9,7 @@ import {
   getWatchlistItemById,
 } from '../db/queries';
 import { enqueueHistoricalImport } from '../services/historicalImport';
+import { WatchlistItemSchema } from '@stock-watcher/shared';
 
 const watchlist = new Hono<{ Bindings: Env; Variables: { userId: string } }>();
 
@@ -16,7 +17,8 @@ const watchlist = new Hono<{ Bindings: Env; Variables: { userId: string } }>();
 watchlist.get('/', async (c) => {
   const userId = c.get('userId');
   const items = await getWatchlist(c.env.DB, userId);
-  return c.json({ items });
+  // zod で API レスポンス用にフィルタリング
+  return c.json({ items: items.map(item => WatchlistItemSchema.parse(item)) });
 });
 
 // 銘柄追加
@@ -59,8 +61,9 @@ watchlist.post('/', async (c) => {
       })
     );
 
+    // zod で API レスポンス用にフィルタリング
     return c.json({
-      item,
+      item: WatchlistItemSchema.parse(item),
       importStarted: true,
       message: '過去の決算資料をインポート中です。完了したらメールでお知らせします。',
     }, 201);

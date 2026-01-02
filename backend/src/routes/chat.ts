@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import type { Env, EarningsSummary, DocumentType } from '../types';
+import { ChatMessageSchema } from '@stock-watcher/shared';
 import {
   getChatMessages,
   addChatMessage,
@@ -23,7 +24,8 @@ chat.get('/:earningsId', async (c) => {
 
   const messages = await getChatMessages(c.env.DB, userId, earningsId);
 
-  return c.json({ messages });
+  // zod で API レスポンス用にフィルタリング
+  return c.json({ messages: messages.map(m => ChatMessageSchema.parse(m)) });
 });
 
 // 過去の決算データをパースするヘルパー
@@ -259,9 +261,10 @@ chat.post('/:earningsId', async (c) => {
     content: assistantContent,
   });
 
+  // zod で API レスポンス用にフィルタリング
   return c.json({
-    userMessage,
-    assistantMessage,
+    userMessage: ChatMessageSchema.parse(userMessage),
+    assistantMessage: ChatMessageSchema.parse(assistantMessage),
   });
 });
 
@@ -348,7 +351,8 @@ chat.get('/release/:releaseId', async (c) => {
 
   const messages = await getChatMessagesByRelease(c.env.DB, userId, releaseId);
 
-  return c.json({ messages });
+  // zod で API レスポンス用にフィルタリング
+  return c.json({ messages: messages.map(m => ChatMessageSchema.parse(m)) });
 });
 
 // リリースのチャット送信（ストリーミング）

@@ -107,7 +107,7 @@ export default function ReleaseDetail() {
     );
   }
 
-  const { release, customAnalysis, notifiedAt, prevRelease, nextRelease } = data;
+  const { release, customAnalysis, prevRelease, nextRelease } = data;
   const messages = chatData?.messages || [];
   const periodLabel = release.fiscal_quarter
     ? `${release.fiscal_year}年 Q${release.fiscal_quarter}`

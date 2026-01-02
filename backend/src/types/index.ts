@@ -1,4 +1,7 @@
-// Cloudflare Workers Bindings
+// ============================================
+// Cloudflare Workers 固有の型
+// ============================================
+
 export interface Env {
   DB: D1Database;
   PDF_BUCKET: R2Bucket;
@@ -32,7 +35,10 @@ export interface RegenerateQueueMessage {
 
 export type QueueMessage = ImportQueueMessage | RegenerateQueueMessage;
 
-// Database Models
+// ============================================
+// Database Models（DB カラムをそのまま反映）
+// ============================================
+
 export interface User {
   id: string;
   google_id: string | null;
@@ -55,7 +61,6 @@ export interface WatchlistItem {
   created_at: string;
 }
 
-// 決算発表（短信+プレゼンのセット、または中計など）
 export type ReleaseType = 'quarterly_earnings' | 'growth_potential';
 export type DocumentType = 'earnings_summary' | 'earnings_presentation' | 'growth_potential';
 
@@ -64,28 +69,27 @@ export interface EarningsRelease {
   release_type: ReleaseType;
   stock_code: string;
   fiscal_year: string;
-  fiscal_quarter: number | null;  // NULL for growth_potential
-  summary: string | null;         // LLM分析結果（JSON）
-  highlights: string | null;      // JSON配列
-  lowlights: string | null;       // JSON配列
+  fiscal_quarter: number | null;
+  summary: string | null;
+  highlights: string | null;
+  lowlights: string | null;
   created_at: string;
   updated_at: string;
 }
 
-// 個別ドキュメント（PDF）
 export interface Earnings {
   id: string;
-  release_id: string | null;      // EarningsRelease への参照
+  release_id: string | null;
   document_type: DocumentType | null;
   stock_code: string;
   fiscal_year: string;
   fiscal_quarter: number;
   announcement_date: string;
-  content_hash: string | null;   // PDF の MD5 ハッシュ
-  r2_key: string | null;         // R2 オブジェクトキー
-  document_title: string | null; // ドキュメントタイトル
+  content_hash: string | null;
+  r2_key: string | null;
+  document_title: string | null;
   raw_data: string | null;
-  summary: string | null;        // 旧: 個別分析結果（後方互換）
+  summary: string | null;
   highlights: string | null;
   lowlights: string | null;
   created_at: string;
@@ -94,8 +98,8 @@ export interface Earnings {
 export interface UserEarningsAnalysis {
   id: string;
   user_id: string;
-  earnings_id: string;           // 旧: 後方互換
-  release_id: string | null;     // 新: EarningsRelease への参照
+  earnings_id: string;
+  release_id: string | null;
   custom_analysis: string | null;
   custom_prompt_used: string | null;
   notified_at: string | null;
@@ -105,8 +109,8 @@ export interface UserEarningsAnalysis {
 export interface ChatMessage {
   id: string;
   user_id: string;
-  earnings_id: string;           // 旧: 後方互換
-  release_id: string | null;     // 新: EarningsRelease への参照
+  earnings_id: string;
+  release_id: string | null;
   role: 'user' | 'assistant';
   content: string;
   created_at: string;
@@ -115,14 +119,34 @@ export interface ChatMessage {
 export interface CustomAnalysisHistory {
   id: string;
   user_id: string;
-  earnings_id: string;           // 旧: 後方互換
-  release_id: string | null;     // 新: EarningsRelease への参照
+  earnings_id: string;
+  release_id: string | null;
   custom_prompt: string;
   analysis: string;
   created_at: string;
 }
 
-// API Types
+// ============================================
+// 認証関連の型
+// ============================================
+
+export interface GoogleUserInfo {
+  id: string;
+  email: string;
+  name: string;
+  picture: string;
+}
+
+export interface JWTPayload {
+  sub: string;
+  email: string;
+  exp: number;
+}
+
+// ============================================
+// Claude API 用の型（内部処理用）
+// ============================================
+
 export interface EarningsSummary {
   overview: string;
   highlights: string[];
@@ -135,23 +159,9 @@ export interface EarningsSummary {
   };
 }
 
-// カスタムプロンプト分析の構造化結果
 export interface CustomAnalysisSummary {
-  overview: string;      // カスタム観点での概要
-  highlights: string[];  // カスタム観点でのハイライト
-  lowlights: string[];   // カスタム観点でのローライト
-  analysis: string;      // 詳細分析
-}
-
-export interface GoogleUserInfo {
-  id: string;
-  email: string;
-  name: string;
-  picture: string;
-}
-
-export interface JWTPayload {
-  sub: string; // user_id
-  email: string;
-  exp: number;
+  overview: string;
+  highlights: string[];
+  lowlights: string[];
+  analysis: string;
 }
