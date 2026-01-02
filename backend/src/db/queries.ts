@@ -477,3 +477,67 @@ export async function findCachedAnalysis(
 
   return history?.analysis ?? null;
 }
+
+// 銘柄に対するユニークなプロンプト一覧を取得
+export async function getUniquePromptsForStock(
+  db: D1Database,
+  userId: string,
+  stockCode: string
+): Promise<string[]> {
+  // user_earnings_analysis と custom_analysis_history の両方からプロンプトを取得
+  const result = await db.prepare(`
+    SELECT DISTINCT prompt FROM (
+      SELECT uea.custom_prompt_used as prompt
+      FROM user_earnings_analysis uea
+      INNER JOIN earnings e ON uea.earnings_id = e.id
+      WHERE uea.user_id = ? AND e.stock_code = ? AND uea.custom_prompt_used IS NOT NULL
+      UNION
+      SELECT cah.custom_prompt as prompt
+      FROM custom_analysis_history cah
+      INNER JOIN earnings e ON cah.earnings_id = e.id
+      WHERE cah.user_id = ? AND e.stock_code = ?
+    )
+    ORDER BY prompt
+  `).bind(userId, stockCode, userId, stockCode).all<{ prompt: string }>();
+
+  return result.results.map(r => r.prompt);
+}
+
+// 決算資料に対するすべての分析を取得（プロンプトごと）
+export interface AnalysisByPrompt {
+  prompt: string;
+  analysis: string;
+  created_at: string;
+}
+
+export async function getAllAnalysesForEarnings(
+  db: D1Database,
+  userId: string,
+  earningsId: string
+): Promise<AnalysisByPrompt[]> {
+  // user_earnings_analysis と custom_analysis_history の両方から取得
+  // 同じプロンプトがある場合は最新のものを使用
+  const result = await db.prepare(`
+    SELECT prompt, analysis, created_at FROM (
+      SELECT
+        uea.custom_prompt_used as prompt,
+        uea.custom_analysis as analysis,
+        uea.created_at,
+        1 as priority
+      FROM user_earnings_analysis uea
+      WHERE uea.user_id = ? AND uea.earnings_id = ? AND uea.custom_prompt_used IS NOT NULL AND uea.custom_analysis IS NOT NULL
+      UNION ALL
+      SELECT
+        cah.custom_prompt as prompt,
+        cah.analysis,
+        cah.created_at,
+        2 as priority
+      FROM custom_analysis_history cah
+      WHERE cah.user_id = ? AND cah.earnings_id = ?
+    )
+    GROUP BY prompt
+    ORDER BY created_at DESC
+  `).bind(userId, earningsId, userId, earningsId).all<AnalysisByPrompt>();
+
+  return result.results;
+}

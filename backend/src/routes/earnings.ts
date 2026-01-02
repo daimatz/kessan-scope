@@ -6,6 +6,8 @@ import {
   getUserEarningsAnalysis,
   getCustomAnalysisHistory,
   getWatchlist,
+  getUniquePromptsForStock,
+  getAllAnalysesForEarnings,
 } from '../db/queries';
 
 const earnings = new Hono<{ Bindings: Env; Variables: { userId: string } }>();
@@ -40,8 +42,11 @@ earnings.get('/:id', async (c) => {
   // ユーザー固有の分析を取得
   const userAnalysis = await getUserEarningsAnalysis(c.env.DB, userId, id);
 
-  // カスタム分析履歴を取得
-  const analysisHistory = await getCustomAnalysisHistory(c.env.DB, userId, id);
+  // この銘柄で使われたすべてのユニークなプロンプト
+  const uniquePrompts = await getUniquePromptsForStock(c.env.DB, userId, earningsData.stock_code);
+
+  // この決算資料に対するすべての分析（プロンプトごと）
+  const allAnalyses = await getAllAnalysesForEarnings(c.env.DB, userId, id);
 
   // 同じ銘柄の前後の決算を取得（時系列ナビゲーション用）
   const allEarnings = await getEarnings(c.env.DB, earningsData.stock_code);
@@ -92,14 +97,14 @@ earnings.get('/:id', async (c) => {
       highlights,
       lowlights,
     },
-    userAnalysis: userAnalysis?.custom_analysis || null,
-    userPromptUsed: userAnalysis?.custom_prompt_used || null,
     notifiedAt: userAnalysis?.notified_at || null,
-    analysisHistory: analysisHistory.map(h => ({
-      id: h.id,
-      custom_prompt: h.custom_prompt,
-      analysis: h.analysis,
-      created_at: h.created_at,
+    // 銘柄で使用されたすべてのユニークなプロンプト（分析軸）
+    availablePrompts: uniquePrompts,
+    // この決算資料に対するすべての分析（プロンプトごと）
+    analysesByPrompt: allAnalyses.map(a => ({
+      prompt: a.prompt,
+      analysis: a.analysis,
+      created_at: a.created_at,
     })),
     // 前後の決算（時系列ナビゲーション用）
     prevEarnings: prevEarnings ? {

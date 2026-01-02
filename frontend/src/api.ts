@@ -162,9 +162,8 @@ export interface EarningsDetail {
   lowlights: string[];
 }
 
-export interface AnalysisHistoryItem {
-  id: string;
-  custom_prompt: string;
+export interface AnalysisByPrompt {
+  prompt: string;
   analysis: string;
   created_at: string;
 }
@@ -177,10 +176,11 @@ export interface EarningsNavItem {
 
 export interface EarningsDetailResponse {
   earnings: EarningsDetail;
-  userAnalysis: string | null;
-  userPromptUsed: string | null;
   notifiedAt: string | null;
-  analysisHistory: AnalysisHistoryItem[];
+  // 銘柄で使用されたすべてのユニークなプロンプト（分析軸）
+  availablePrompts: string[];
+  // この決算資料に対するすべての分析（プロンプトごと）
+  analysesByPrompt: AnalysisByPrompt[];
   prevEarnings: EarningsNavItem | null;
   nextEarnings: EarningsNavItem | null;
 }

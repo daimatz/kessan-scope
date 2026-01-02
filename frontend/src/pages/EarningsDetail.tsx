@@ -12,20 +12,11 @@ export default function EarningsDetail() {
   const queryClient = useQueryClient();
   const [message, setMessage] = useState('');
   const [showPdf, setShowPdf] = useState(false);
-  const [expandedHistory, setExpandedHistory] = useState<string | null>(null);
 
-  // URLからタブ状態を読み取り
+  // URLからタブ状態と選択中のプロンプトを読み取り
   const searchParams = new URLSearchParams(location.search);
   const activeTab: AnalysisTab = searchParams.get('tab') === 'custom' ? 'custom' : 'standard';
-
-  // タブ変更時にURLを更新
-  const handleTabChange = (tab: AnalysisTab) => {
-    if (tab === 'custom') {
-      navigate(`${location.pathname}?tab=custom`, { replace: true });
-    } else {
-      navigate(location.pathname, { replace: true });
-    }
-  };
+  const selectedPromptFromUrl = searchParams.get('prompt');
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['earnings', id],
@@ -47,14 +38,55 @@ export default function EarningsDetail() {
     },
   });
 
-  // カスタム分析をパース（早期リターンの前にフックを配置）
-  const userAnalysis = data?.userAnalysis ?? null;
-  const customAnalysis = useMemo(() => parseCustomAnalysis(userAnalysis), [userAnalysis]);
+  // 選択中のプロンプトと分析を計算（早期リターンの前にフックを配置）
+  const availablePrompts = data?.availablePrompts ?? [];
+  const analysesByPrompt = data?.analysesByPrompt ?? [];
+
+  // 選択中のプロンプト（URLにあればそれ、なければ最初のプロンプト）
+  const selectedPrompt = useMemo(() => {
+    if (selectedPromptFromUrl && availablePrompts.includes(selectedPromptFromUrl)) {
+      return selectedPromptFromUrl;
+    }
+    return availablePrompts[0] || null;
+  }, [selectedPromptFromUrl, availablePrompts]);
+
+  // 選択中のプロンプトに対する分析
+  const currentAnalysisRaw = useMemo(() => {
+    if (!selectedPrompt) return null;
+    const found = analysesByPrompt.find(a => a.prompt === selectedPrompt);
+    return found?.analysis ?? null;
+  }, [selectedPrompt, analysesByPrompt]);
+
+  const currentAnalysis = useMemo(() => parseCustomAnalysis(currentAnalysisRaw), [currentAnalysisRaw]);
+  const hasCustomAnalysis = availablePrompts.length > 0;
 
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
     if (!message.trim()) return;
     sendMutation.mutate(message);
+  };
+
+  // URLを更新するヘルパー
+  const updateUrl = (tab: AnalysisTab, prompt: string | null) => {
+    const params = new URLSearchParams();
+    if (tab === 'custom') {
+      params.set('tab', 'custom');
+      if (prompt) {
+        params.set('prompt', prompt);
+      }
+    }
+    const queryString = params.toString();
+    navigate(`${location.pathname}${queryString ? `?${queryString}` : ''}`, { replace: true });
+  };
+
+  // タブ変更
+  const handleTabChange = (tab: AnalysisTab) => {
+    updateUrl(tab, selectedPrompt);
+  };
+
+  // プロンプト変更
+  const handlePromptChange = (prompt: string) => {
+    updateUrl('custom', prompt);
   };
 
   if (isLoading) {
@@ -73,15 +105,25 @@ export default function EarningsDetail() {
     );
   }
 
-  const { earnings, userPromptUsed, notifiedAt, analysisHistory, prevEarnings, nextEarnings } = data;
+  const { earnings, notifiedAt, prevEarnings, nextEarnings } = data;
   const messages = chatData?.messages || [];
   const pdfUrl = earnings.r2_key ? earningsAPI.getPdfUrl(id!) : null;
-  const hasCustomAnalysis = customAnalysis !== null && (customAnalysis.overview || customAnalysis.analysis);
 
-  // 前後ナビゲーションのURL（タブ状態を維持）
-  const tabQuery = activeTab === 'custom' ? '?tab=custom' : '';
-  const prevUrl = prevEarnings ? `/earnings/${prevEarnings.id}${tabQuery}` : null;
-  const nextUrl = nextEarnings ? `/earnings/${nextEarnings.id}${tabQuery}` : null;
+  // 前後ナビゲーションのURL（タブ状態とプロンプトを維持）
+  const buildNavUrl = (earningsId: string) => {
+    const params = new URLSearchParams();
+    if (activeTab === 'custom') {
+      params.set('tab', 'custom');
+      if (selectedPrompt) {
+        params.set('prompt', selectedPrompt);
+      }
+    }
+    const queryString = params.toString();
+    return `/earnings/${earningsId}${queryString ? `?${queryString}` : ''}`;
+  };
+
+  const prevUrl = prevEarnings ? buildNavUrl(prevEarnings.id) : null;
+  const nextUrl = nextEarnings ? buildNavUrl(nextEarnings.id) : null;
 
   return (
     <div className="page earnings-detail">
@@ -235,122 +277,102 @@ export default function EarningsDetail() {
           )}
 
           {/* カスタム分析タブ */}
-          {activeTab === 'custom' && customAnalysis && (
+          {activeTab === 'custom' && (
             <div className="tab-content">
-              {userPromptUsed && (
-                <div className="prompt-used">
-                  <span className="prompt-label">分析観点:</span>
-                  <span className="prompt-text">{userPromptUsed}</span>
-                </div>
-              )}
-
-              {customAnalysis.overview && (
-                <>
-                  <h2>🎯 カスタム観点での概要</h2>
-                  <p className="overview">{customAnalysis.overview}</p>
-                </>
-              )}
-
-              {(customAnalysis.highlights.length > 0 || customAnalysis.lowlights.length > 0) && (
-                <div className="highlights-grid">
-                  <div className="highlight-section">
-                    <h3>✅ ハイライト</h3>
-                    {customAnalysis.highlights.length > 0 ? (
-                      <ul className="highlight-list positive">
-                        {customAnalysis.highlights.map((h, i) => (
-                          <li key={i}>{h}</li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="empty">情報なし</p>
-                    )}
-                  </div>
-
-                  <div className="highlight-section">
-                    <h3>⚠️ ローライト</h3>
-                    {customAnalysis.lowlights.length > 0 ? (
-                      <ul className="highlight-list negative">
-                        {customAnalysis.lowlights.map((l, i) => (
-                          <li key={i}>{l}</li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="empty">情報なし</p>
-                    )}
+              {/* 分析軸セレクター */}
+              {availablePrompts.length > 0 && (
+                <div className="prompt-selector">
+                  <span className="prompt-selector-label">分析軸:</span>
+                  <div className="prompt-buttons">
+                    {availablePrompts.map((prompt) => (
+                      <button
+                        key={prompt}
+                        className={`prompt-button ${selectedPrompt === prompt ? 'active' : ''}`}
+                        onClick={() => handlePromptChange(prompt)}
+                        title={prompt}
+                      >
+                        {prompt.length > 20 ? `${prompt.substring(0, 20)}...` : prompt}
+                      </button>
+                    ))}
                   </div>
                 </div>
               )}
 
-              {customAnalysis.analysis && (
-                <>
-                  <h3>📝 詳細分析</h3>
-                  <div className="custom-analysis">{customAnalysis.analysis}</div>
-                </>
-              )}
-            </div>
-          )}
-        </section>
-      )}
+              {/* 時系列ナビゲーション */}
+              <nav className="timeline-nav">
+                {prevUrl ? (
+                  <Link to={prevUrl} className="timeline-link">
+                    ◀ {prevEarnings!.fiscal_year}Q{prevEarnings!.fiscal_quarter}
+                  </Link>
+                ) : (
+                  <span className="timeline-link disabled">◀ 前期</span>
+                )}
+                <span className="timeline-current">
+                  {earnings.fiscal_year}Q{earnings.fiscal_quarter}
+                </span>
+                {nextUrl ? (
+                  <Link to={nextUrl} className="timeline-link">
+                    {nextEarnings!.fiscal_year}Q{nextEarnings!.fiscal_quarter} ▶
+                  </Link>
+                ) : (
+                  <span className="timeline-link disabled">次期 ▶</span>
+                )}
+              </nav>
 
-      {/* 分析履歴 */}
-      {analysisHistory.length > 0 && (
-        <section className="section">
-          <h2>📜 分析履歴 ({analysisHistory.length}件)</h2>
-          <div className="analysis-history">
-            {analysisHistory.map((item) => {
-              const parsedHistory = parseCustomAnalysis(item.analysis);
-              return (
-                <div key={item.id} className="history-item">
-                  <div
-                    className="history-header"
-                    onClick={() =>
-                      setExpandedHistory(expandedHistory === item.id ? null : item.id)
-                    }
-                  >
-                    <div className="history-prompt">{item.custom_prompt}</div>
-                    <div className="history-meta">
-                      <span className="history-date">
-                        {new Date(item.created_at).toLocaleString('ja-JP')}
-                      </span>
-                      <span className="history-toggle">
-                        {expandedHistory === item.id ? '▼' : '▶'}
-                      </span>
-                    </div>
-                  </div>
-                  {expandedHistory === item.id && parsedHistory && (
-                    <div className="history-content">
-                      {parsedHistory.overview && (
-                        <p className="history-overview">{parsedHistory.overview}</p>
-                      )}
-                      {parsedHistory.highlights.length > 0 && (
-                        <div className="history-highlights">
-                          <strong>ハイライト:</strong>
-                          <ul>
-                            {parsedHistory.highlights.map((h, i) => (
+              {/* 分析内容 */}
+              {currentAnalysis ? (
+                <>
+                  {currentAnalysis.overview && (
+                    <>
+                      <h2>🎯 カスタム観点での概要</h2>
+                      <p className="overview">{currentAnalysis.overview}</p>
+                    </>
+                  )}
+
+                  {(currentAnalysis.highlights.length > 0 || currentAnalysis.lowlights.length > 0) && (
+                    <div className="highlights-grid">
+                      <div className="highlight-section">
+                        <h3>✅ ハイライト</h3>
+                        {currentAnalysis.highlights.length > 0 ? (
+                          <ul className="highlight-list positive">
+                            {currentAnalysis.highlights.map((h, i) => (
                               <li key={i}>{h}</li>
                             ))}
                           </ul>
-                        </div>
-                      )}
-                      {parsedHistory.lowlights.length > 0 && (
-                        <div className="history-lowlights">
-                          <strong>ローライト:</strong>
-                          <ul>
-                            {parsedHistory.lowlights.map((l, i) => (
+                        ) : (
+                          <p className="empty">情報なし</p>
+                        )}
+                      </div>
+
+                      <div className="highlight-section">
+                        <h3>⚠️ ローライト</h3>
+                        {currentAnalysis.lowlights.length > 0 ? (
+                          <ul className="highlight-list negative">
+                            {currentAnalysis.lowlights.map((l, i) => (
                               <li key={i}>{l}</li>
                             ))}
                           </ul>
-                        </div>
-                      )}
-                      {parsedHistory.analysis && (
-                        <div className="history-analysis">{parsedHistory.analysis}</div>
-                      )}
+                        ) : (
+                          <p className="empty">情報なし</p>
+                        )}
+                      </div>
                     </div>
                   )}
+
+                  {currentAnalysis.analysis && (
+                    <>
+                      <h3>📝 詳細分析</h3>
+                      <div className="custom-analysis">{currentAnalysis.analysis}</div>
+                    </>
+                  )}
+                </>
+              ) : (
+                <div className="empty-analysis">
+                  <p>この期にはまだ「{selectedPrompt}」での分析がありません</p>
                 </div>
-              );
-            })}
-          </div>
+              )}
+            </div>
+          )}
         </section>
       )}
 
