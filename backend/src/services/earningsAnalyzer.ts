@@ -221,6 +221,9 @@ export interface RegenerateResult {
   skipped: number;
 }
 
+// アプリ側の並列処理数（Queue の max_concurrency と組み合わせ）
+const REGENERATE_PARALLEL_LIMIT = 3;
+
 // リリースからPDFドキュメントを取得するヘルパー
 async function getPdfDocumentsForRelease(
   env: Env,
@@ -358,7 +361,7 @@ async function regenerateOneRelease(
   }
 }
 
-// ウォッチリストアイテムのカスタム分析を再生成（逐次処理、Queue の max_concurrency で並列制御）
+// ウォッチリストアイテムのカスタム分析を再生成（3並列）
 export async function regenerateCustomAnalysis(
   env: Env,
   watchlistItem: WatchlistItem
@@ -376,20 +379,26 @@ export async function regenerateCustomAnalysis(
   let cached = 0;
   let skipped = 0;
 
-  // 逐次処理（Queue の max_concurrency で異なる銘柄間の並列制御）
-  for (const release of allReleases) {
-    const result = await regenerateOneRelease(env, claude, release, userId, customPrompt);
+  // REGENERATE_PARALLEL_LIMIT 並列で処理
+  for (let i = 0; i < allReleases.length; i += REGENERATE_PARALLEL_LIMIT) {
+    const batch = allReleases.slice(i, i + REGENERATE_PARALLEL_LIMIT);
 
-    switch (result) {
-      case 'regenerated':
-        regenerated++;
-        break;
-      case 'cached':
-        cached++;
-        break;
-      case 'skipped':
-        skipped++;
-        break;
+    const results = await Promise.all(
+      batch.map(release => regenerateOneRelease(env, claude, release, userId, customPrompt))
+    );
+
+    for (const result of results) {
+      switch (result) {
+        case 'regenerated':
+          regenerated++;
+          break;
+        case 'cached':
+          cached++;
+          break;
+        case 'skipped':
+          skipped++;
+          break;
+      }
     }
   }
 
