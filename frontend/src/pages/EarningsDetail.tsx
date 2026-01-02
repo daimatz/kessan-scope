@@ -3,7 +3,7 @@ import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { earningsAPI, chatAPI, parseCustomAnalysis } from '../api';
 
-type AnalysisTab = 'standard' | 'custom';
+const STANDARD_ANALYSIS_KEY = '__standard__';
 
 export default function EarningsDetail() {
   const { id } = useParams<{ id: string }>();
@@ -13,10 +13,9 @@ export default function EarningsDetail() {
   const [message, setMessage] = useState('');
   const [showPdf, setShowPdf] = useState(false);
 
-  // URLからタブ状態と選択中のプロンプトを読み取り
+  // URLから選択中の分析軸を読み取り
   const searchParams = new URLSearchParams(location.search);
-  const activeTab: AnalysisTab = searchParams.get('tab') === 'custom' ? 'custom' : 'standard';
-  const selectedPromptFromUrl = searchParams.get('prompt');
+  const selectedAxisFromUrl = searchParams.get('axis');
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['earnings', id],
@@ -38,27 +37,36 @@ export default function EarningsDetail() {
     },
   });
 
-  // 選択中のプロンプトと分析を計算（早期リターンの前にフックを配置）
-  const availablePrompts = data?.availablePrompts ?? [];
+  // 選択中の分析軸を計算（早期リターンの前にフックを配置）
+  const customPrompts = data?.availablePrompts ?? [];
   const analysesByPrompt = data?.analysesByPrompt ?? [];
+  const hasStandardAnalysis = !!data?.earnings?.summary;
+  const hasCustomAnalysis = customPrompts.length > 0;
 
-  // 選択中のプロンプト（URLにあればそれ、なければ最初のプロンプト）
-  const selectedPrompt = useMemo(() => {
-    if (selectedPromptFromUrl && availablePrompts.includes(selectedPromptFromUrl)) {
-      return selectedPromptFromUrl;
+  // 利用可能なすべての分析軸（標準分析 + カスタムプロンプト）
+  const allAxes = useMemo(() => {
+    const axes: string[] = [];
+    if (hasStandardAnalysis) {
+      axes.push(STANDARD_ANALYSIS_KEY);
     }
-    return availablePrompts[0] || null;
-  }, [selectedPromptFromUrl, availablePrompts]);
+    axes.push(...customPrompts);
+    return axes;
+  }, [hasStandardAnalysis, customPrompts]);
 
-  // 選択中のプロンプトに対する分析
-  const currentAnalysisRaw = useMemo(() => {
-    if (!selectedPrompt) return null;
-    const found = analysesByPrompt.find(a => a.prompt === selectedPrompt);
-    return found?.analysis ?? null;
-  }, [selectedPrompt, analysesByPrompt]);
+  // 選択中の分析軸（URLにあればそれ、なければ最初の軸）
+  const selectedAxis = useMemo(() => {
+    if (selectedAxisFromUrl && allAxes.includes(selectedAxisFromUrl)) {
+      return selectedAxisFromUrl;
+    }
+    return allAxes[0] || null;
+  }, [selectedAxisFromUrl, allAxes]);
 
-  const currentAnalysis = useMemo(() => parseCustomAnalysis(currentAnalysisRaw), [currentAnalysisRaw]);
-  const hasCustomAnalysis = availablePrompts.length > 0;
+  // 選択中の軸がカスタムプロンプトの場合、その分析を取得
+  const currentCustomAnalysis = useMemo(() => {
+    if (!selectedAxis || selectedAxis === STANDARD_ANALYSIS_KEY) return null;
+    const found = analysesByPrompt.find(a => a.prompt === selectedAxis);
+    return found ? parseCustomAnalysis(found.analysis) : null;
+  }, [selectedAxis, analysesByPrompt]);
 
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,27 +74,15 @@ export default function EarningsDetail() {
     sendMutation.mutate(message);
   };
 
-  // URLを更新するヘルパー
-  const updateUrl = (tab: AnalysisTab, prompt: string | null) => {
+  // 分析軸変更
+  const handleAxisChange = (axis: string) => {
     const params = new URLSearchParams();
-    if (tab === 'custom') {
-      params.set('tab', 'custom');
-      if (prompt) {
-        params.set('prompt', prompt);
-      }
+    // 標準分析以外の場合のみURLにaxisを保存
+    if (axis !== STANDARD_ANALYSIS_KEY) {
+      params.set('axis', axis);
     }
     const queryString = params.toString();
     navigate(`${location.pathname}${queryString ? `?${queryString}` : ''}`, { replace: true });
-  };
-
-  // タブ変更
-  const handleTabChange = (tab: AnalysisTab) => {
-    updateUrl(tab, selectedPrompt);
-  };
-
-  // プロンプト変更
-  const handlePromptChange = (prompt: string) => {
-    updateUrl('custom', prompt);
   };
 
   if (isLoading) {
@@ -109,14 +105,11 @@ export default function EarningsDetail() {
   const messages = chatData?.messages || [];
   const pdfUrl = earnings.r2_key ? earningsAPI.getPdfUrl(id!) : null;
 
-  // 前後ナビゲーションのURL（タブ状態とプロンプトを維持）
+  // 前後ナビゲーションのURL（分析軸を維持）
   const buildNavUrl = (earningsId: string) => {
     const params = new URLSearchParams();
-    if (activeTab === 'custom') {
-      params.set('tab', 'custom');
-      if (selectedPrompt) {
-        params.set('prompt', selectedPrompt);
-      }
+    if (selectedAxis && selectedAxis !== STANDARD_ANALYSIS_KEY) {
+      params.set('axis', selectedAxis);
     }
     const queryString = params.toString();
     return `/earnings/${earningsId}${queryString ? `?${queryString}` : ''}`;
@@ -200,29 +193,53 @@ export default function EarningsDetail() {
         </section>
       )}
 
-      {/* 分析タブ */}
-      {(earnings.summary || hasCustomAnalysis) && (
+      {/* 分析セクション */}
+      {(hasStandardAnalysis || hasCustomAnalysis) && (
         <section className="section analysis-section">
-          {/* タブヘッダー */}
-          <div className="analysis-tabs">
-            <button
-              className={`analysis-tab ${activeTab === 'standard' ? 'active' : ''}`}
-              onClick={() => handleTabChange('standard')}
-              disabled={!earnings.summary}
-            >
-              📊 標準分析
-            </button>
-            <button
-              className={`analysis-tab ${activeTab === 'custom' ? 'active' : ''}`}
-              onClick={() => handleTabChange('custom')}
-              disabled={!hasCustomAnalysis}
-            >
-              🎯 カスタム分析
-            </button>
-          </div>
+          {/* 分析軸セレクター */}
+          {allAxes.length > 0 && (
+            <div className="prompt-selector">
+              <span className="prompt-selector-label">分析軸:</span>
+              <div className="prompt-buttons">
+                {allAxes.map((axis) => (
+                  <button
+                    key={axis}
+                    className={`prompt-button ${selectedAxis === axis ? 'active' : ''}`}
+                    onClick={() => handleAxisChange(axis)}
+                    title={axis === STANDARD_ANALYSIS_KEY ? '標準分析' : axis}
+                  >
+                    {axis === STANDARD_ANALYSIS_KEY
+                      ? '📊 標準分析'
+                      : axis.length > 20 ? `🎯 ${axis.substring(0, 18)}...` : `🎯 ${axis}`}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
-          {/* 標準分析タブ */}
-          {activeTab === 'standard' && earnings.summary && (
+          {/* 時系列ナビゲーション */}
+          <nav className="timeline-nav">
+            {prevUrl ? (
+              <Link to={prevUrl} className="timeline-link">
+                ◀ {prevEarnings!.fiscal_year}Q{prevEarnings!.fiscal_quarter}
+              </Link>
+            ) : (
+              <span className="timeline-link disabled">◀ 前期</span>
+            )}
+            <span className="timeline-current">
+              {earnings.fiscal_year}Q{earnings.fiscal_quarter}
+            </span>
+            {nextUrl ? (
+              <Link to={nextUrl} className="timeline-link">
+                {nextEarnings!.fiscal_year}Q{nextEarnings!.fiscal_quarter} ▶
+              </Link>
+            ) : (
+              <span className="timeline-link disabled">次期 ▶</span>
+            )}
+          </nav>
+
+          {/* 標準分析コンテンツ */}
+          {selectedAxis === STANDARD_ANALYSIS_KEY && earnings.summary && (
             <div className="tab-content">
               <h2>📊 概要</h2>
               <p className="overview">{earnings.summary.overview}</p>
@@ -276,66 +293,25 @@ export default function EarningsDetail() {
             </div>
           )}
 
-          {/* カスタム分析タブ */}
-          {activeTab === 'custom' && (
+          {/* カスタム分析コンテンツ */}
+          {selectedAxis && selectedAxis !== STANDARD_ANALYSIS_KEY && (
             <div className="tab-content">
-              {/* 分析軸セレクター */}
-              {availablePrompts.length > 0 && (
-                <div className="prompt-selector">
-                  <span className="prompt-selector-label">分析軸:</span>
-                  <div className="prompt-buttons">
-                    {availablePrompts.map((prompt) => (
-                      <button
-                        key={prompt}
-                        className={`prompt-button ${selectedPrompt === prompt ? 'active' : ''}`}
-                        onClick={() => handlePromptChange(prompt)}
-                        title={prompt}
-                      >
-                        {prompt.length > 20 ? `${prompt.substring(0, 20)}...` : prompt}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* 時系列ナビゲーション */}
-              <nav className="timeline-nav">
-                {prevUrl ? (
-                  <Link to={prevUrl} className="timeline-link">
-                    ◀ {prevEarnings!.fiscal_year}Q{prevEarnings!.fiscal_quarter}
-                  </Link>
-                ) : (
-                  <span className="timeline-link disabled">◀ 前期</span>
-                )}
-                <span className="timeline-current">
-                  {earnings.fiscal_year}Q{earnings.fiscal_quarter}
-                </span>
-                {nextUrl ? (
-                  <Link to={nextUrl} className="timeline-link">
-                    {nextEarnings!.fiscal_year}Q{nextEarnings!.fiscal_quarter} ▶
-                  </Link>
-                ) : (
-                  <span className="timeline-link disabled">次期 ▶</span>
-                )}
-              </nav>
-
-              {/* 分析内容 */}
-              {currentAnalysis ? (
+              {currentCustomAnalysis ? (
                 <>
-                  {currentAnalysis.overview && (
+                  {currentCustomAnalysis.overview && (
                     <>
                       <h2>🎯 カスタム観点での概要</h2>
-                      <p className="overview">{currentAnalysis.overview}</p>
+                      <p className="overview">{currentCustomAnalysis.overview}</p>
                     </>
                   )}
 
-                  {(currentAnalysis.highlights.length > 0 || currentAnalysis.lowlights.length > 0) && (
+                  {(currentCustomAnalysis.highlights.length > 0 || currentCustomAnalysis.lowlights.length > 0) && (
                     <div className="highlights-grid">
                       <div className="highlight-section">
                         <h3>✅ ハイライト</h3>
-                        {currentAnalysis.highlights.length > 0 ? (
+                        {currentCustomAnalysis.highlights.length > 0 ? (
                           <ul className="highlight-list positive">
-                            {currentAnalysis.highlights.map((h, i) => (
+                            {currentCustomAnalysis.highlights.map((h, i) => (
                               <li key={i}>{h}</li>
                             ))}
                           </ul>
@@ -346,9 +322,9 @@ export default function EarningsDetail() {
 
                       <div className="highlight-section">
                         <h3>⚠️ ローライト</h3>
-                        {currentAnalysis.lowlights.length > 0 ? (
+                        {currentCustomAnalysis.lowlights.length > 0 ? (
                           <ul className="highlight-list negative">
-                            {currentAnalysis.lowlights.map((l, i) => (
+                            {currentCustomAnalysis.lowlights.map((l, i) => (
                               <li key={i}>{l}</li>
                             ))}
                           </ul>
@@ -359,16 +335,16 @@ export default function EarningsDetail() {
                     </div>
                   )}
 
-                  {currentAnalysis.analysis && (
+                  {currentCustomAnalysis.analysis && (
                     <>
                       <h3>📝 詳細分析</h3>
-                      <div className="custom-analysis">{currentAnalysis.analysis}</div>
+                      <div className="custom-analysis">{currentCustomAnalysis.analysis}</div>
                     </>
                   )}
                 </>
               ) : (
                 <div className="empty-analysis">
-                  <p>この期にはまだ「{selectedPrompt}」での分析がありません</p>
+                  <p>この期にはまだ「{selectedAxis}」での分析がありません</p>
                 </div>
               )}
             </div>
