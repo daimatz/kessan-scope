@@ -453,43 +453,6 @@ ${pastEarningsContext ? `【過去の決算履歴（経緯把握用）】\n${pas
     return fullContent;
   }
 
-  // 決算についてのチャット（旧: サマリーベース、フォールバック用）
-  async chat(
-    earningsSummary: EarningsSummary,
-    messages: Array<{ role: 'user' | 'assistant'; content: string }>,
-    userMessage: string
-  ): Promise<string> {
-    const systemPrompt = `あなたは事業戦略コンサルタントです。決算情報について、事業家目線で質問に答えてください。
-
-【重要な姿勢】
-- 株価や投資リターンには一切言及しない
-- 経営判断の背景、事業戦略の意図を深掘りする
-- セグメント別の戦略的意思決定を読み解く
-- 競争環境の変化と経営の対応を分析する
-
-決算サマリー:
-${JSON.stringify(earningsSummary, null, 2)}`;
-
-    const chatMessages: Array<{ role: 'user' | 'assistant'; content: string }> = [
-      ...messages,
-      { role: 'user', content: userMessage },
-    ];
-
-    const response = await this.client.messages.create({
-      model: this.model,
-      max_tokens: 2048,
-      system: systemPrompt,
-      messages: chatMessages,
-    });
-
-    const textBlock = response.content.find((block) => block.type === 'text');
-    if (!textBlock || textBlock.type !== 'text') {
-      throw new Error('No text response from Claude');
-    }
-
-    return textBlock.text;
-  }
-
   private arrayBufferToBase64(buffer: ArrayBuffer): string {
     const bytes = new Uint8Array(buffer);
     let binary = '';

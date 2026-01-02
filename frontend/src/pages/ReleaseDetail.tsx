@@ -54,7 +54,6 @@ export default function ReleaseDetail() {
     const tempUserMessage = {
       id: `temp-${Date.now()}`,
       user_id: '',
-      earnings_id: '',
       release_id: releaseId!,
       role: 'user' as const,
       content: userMessage,

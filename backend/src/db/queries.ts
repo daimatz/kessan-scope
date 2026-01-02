@@ -36,12 +36,9 @@ export {
   type ReleaseForDashboard,
   getReleasesForDashboard,
   getEarningsById,
-  createEarnings,
   addDocumentUrl,
   checkUrlExists,
   getExistingContentHashes,
-  updateEarningsAnalysis,
-  getEarningsByStockCode,
   createEarningsWithRelease,
 } from './earningsQueries';
 

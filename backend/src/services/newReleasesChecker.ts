@@ -2,7 +2,7 @@
 // ※新着はTDnetのみ（IRBANKは遅延があるため履歴用）
 
 import { TdnetClient } from './tdnet';
-import { DocumentClassifier, toOldDocumentType } from './documentClassifier';
+import { DocumentClassifier } from './documentClassifier';
 import {
   createEarningsWithRelease,
   getExistingContentHashes,
@@ -88,7 +88,6 @@ export async function checkNewReleases(env: Env): Promise<{ checked: number; imp
 
     const fiscalYear = classification.fiscal_year;
     const fiscalQuarter = classification.fiscal_quarter ?? 0;
-    const docType = toOldDocumentType(classification.document_type);
     const documentType = classificationToDocumentType(classification.document_type);
 
     if (!fiscalYear || !documentType) {
@@ -150,7 +149,7 @@ export async function checkNewReleases(env: Env): Promise<{ checked: number; imp
 
       existingHashes.add(storedPdf.contentHash);
       imported++;
-      console.log(`Imported new [${docType}]: ${stockCode} ${fiscalYear}Q${fiscalQuarter} - ${doc.title} (confidence: ${classification.confidence.toFixed(2)}, release: ${release.id})`);
+      console.log(`Imported new [${documentType}]: ${stockCode} ${fiscalYear}Q${fiscalQuarter} - ${doc.title} (confidence: ${classification.confidence.toFixed(2)}, release: ${release.id})`);
 
       // 分析対象のリリースを記録
       const currentIsNew = releasesToAnalyze.get(release.id);

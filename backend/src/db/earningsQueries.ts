@@ -32,42 +32,6 @@ export async function getEarningsById(db: D1Database, id: string): Promise<Earni
   return result;
 }
 
-export async function createEarnings(db: D1Database, data: {
-  stock_code: string;
-  fiscal_year: string;
-  fiscal_quarter: number;
-  announcement_date: string;
-  content_hash: string | null;
-  r2_key: string | null;
-  document_url: string | null;
-  document_title: string | null;
-}): Promise<Earnings> {
-  const id = generateId();
-
-  await db.prepare(
-    `INSERT INTO earnings (id, stock_code, fiscal_year, fiscal_quarter, announcement_date, content_hash, r2_key, document_title)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-  ).bind(
-    id,
-    data.stock_code,
-    data.fiscal_year,
-    data.fiscal_quarter,
-    data.announcement_date,
-    data.content_hash,
-    data.r2_key,
-    data.document_title
-  ).run();
-
-  // URL インデックスに追加
-  if (data.document_url) {
-    await addDocumentUrl(db, id, data.document_url);
-  }
-
-  const earnings = await getEarningsById(db, id);
-  if (!earnings) throw new Error('Failed to create earnings');
-  return earnings;
-}
-
 // URL インデックスに追加
 export async function addDocumentUrl(db: D1Database, earningsId: string, url: string): Promise<void> {
   await db.prepare(
@@ -89,48 +53,6 @@ export async function getExistingContentHashes(db: D1Database, stockCode: string
     'SELECT content_hash FROM earnings WHERE stock_code = ? AND content_hash IS NOT NULL'
   ).bind(stockCode).all<{ content_hash: string }>();
   return new Set(result.results.map(r => r.content_hash));
-}
-
-export async function updateEarningsAnalysis(db: D1Database, id: string, data: {
-  raw_data?: string;
-  summary?: string;
-  highlights?: string;
-  lowlights?: string;
-}): Promise<void> {
-  const updates: string[] = [];
-  const values: (string | null)[] = [];
-
-  if (data.raw_data !== undefined) {
-    updates.push('raw_data = ?');
-    values.push(data.raw_data);
-  }
-  if (data.summary !== undefined) {
-    updates.push('summary = ?');
-    values.push(data.summary);
-  }
-  if (data.highlights !== undefined) {
-    updates.push('highlights = ?');
-    values.push(data.highlights);
-  }
-  if (data.lowlights !== undefined) {
-    updates.push('lowlights = ?');
-    values.push(data.lowlights);
-  }
-
-  if (updates.length === 0) return;
-
-  values.push(id);
-
-  await db.prepare(
-    `UPDATE earnings SET ${updates.join(', ')} WHERE id = ?`
-  ).bind(...values).run();
-}
-
-export async function getEarningsByStockCode(db: D1Database, stockCode: string): Promise<Earnings[]> {
-  const result = await db.prepare(
-    'SELECT * FROM earnings WHERE stock_code = ? ORDER BY announcement_date DESC'
-  ).bind(stockCode).all<Earnings>();
-  return result.results;
 }
 
 // Earnings 作成（release_id と document_type 付き）

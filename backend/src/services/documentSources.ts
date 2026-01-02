@@ -3,7 +3,7 @@
 
 import { TdnetClient, TdnetDocument, isStrategicDocument, determineFiscalYear, determineFiscalQuarter, getDocumentType } from './tdnet';
 import { IrbankClient, toDocumentCandidate } from './irbank';
-import { DocumentClassifier, DocumentClassification, toOldDocumentType } from './documentClassifier';
+import { DocumentClassifier, DocumentClassification } from './documentClassifier';
 
 // 共通のドキュメント形式
 export interface DocumentCandidate {
@@ -122,5 +122,5 @@ export async function classifyDocuments(
 export { determineFiscalYear, determineFiscalQuarter, getDocumentType };
 
 // LLM分類関連もエクスポート
-export { DocumentClassifier, toOldDocumentType };
+export { DocumentClassifier };
 export type { DocumentClassification };

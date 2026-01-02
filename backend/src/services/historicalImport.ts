@@ -2,7 +2,6 @@ import {
   getDocumentCandidates,
   classifyDocuments,
   ClassifiedDocument,
-  toOldDocumentType,
 } from './documentSources';
 import {
   createEarningsWithRelease,
@@ -71,7 +70,6 @@ async function processDocument(
   const { classification } = doc;
   const fiscalYear = classification.fiscal_year;
   const fiscalQuarter = classification.fiscal_quarter ?? 0; // null は 0 に変換
-  const docType = toOldDocumentType(classification.document_type);
   const documentType = classificationToDocumentType(classification.document_type);
 
   if (!fiscalYear || !documentType) {
@@ -121,7 +119,7 @@ async function processDocument(
     });
 
     console.log(
-      `Imported [${docType}] from ${doc.source}: ${stockCode} ${fiscalYear}Q${fiscalQuarter} - ${doc.title} (confidence: ${classification.confidence.toFixed(2)}, release: ${release.id})`
+      `Imported [${documentType}] from ${doc.source}: ${stockCode} ${fiscalYear}Q${fiscalQuarter} - ${doc.title} (confidence: ${classification.confidence.toFixed(2)}, release: ${release.id})`
     );
 
     return { imported: true, hash: storedPdf.contentHash, releaseId: release.id, isNewRelease };

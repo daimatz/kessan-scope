@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { DocumentClassifier, toOldDocumentType } from '../src/services/documentClassifier';
+import { DocumentClassifier } from '../src/services/documentClassifier';
 
 // OpenAI API のモック
 vi.mock('openai', () => {
@@ -108,20 +108,3 @@ describe('DocumentClassifier', () => {
   });
 });
 
-describe('toOldDocumentType', () => {
-  it('earnings_summary を変換', () => {
-    expect(toOldDocumentType('earnings_summary')).toBe('earnings_summary');
-  });
-
-  it('earnings_presentation を変換', () => {
-    expect(toOldDocumentType('earnings_presentation')).toBe('earnings_presentation');
-  });
-
-  it('growth_potential を midterm_plan に変換', () => {
-    expect(toOldDocumentType('growth_potential')).toBe('midterm_plan');
-  });
-
-  it('other を変換', () => {
-    expect(toOldDocumentType('other')).toBe('other');
-  });
-});

@@ -144,19 +144,3 @@ export class DocumentClassifier {
     return classification.document_type !== 'other';
   }
 }
-
-// 旧ロジックとの互換性のため、DocumentType を変換するヘルパー
-export function toOldDocumentType(
-  docType: DocumentClassification['document_type']
-): 'earnings_summary' | 'earnings_presentation' | 'midterm_plan' | 'strategy' | 'other' {
-  switch (docType) {
-    case 'earnings_summary':
-      return 'earnings_summary';
-    case 'earnings_presentation':
-      return 'earnings_presentation';
-    case 'growth_potential':
-      return 'midterm_plan'; // 旧ロジックでは midterm_plan として扱う
-    case 'other':
-      return 'other';
-  }
-}

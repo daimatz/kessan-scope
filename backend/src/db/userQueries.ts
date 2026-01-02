@@ -108,18 +108,7 @@ export async function verifyPassword(db: D1Database, userId: string, password: s
     return false;
   }
 
-  const isValid = await verifyPasswordHash(password, result.password_hash);
-
-  // 旧形式のハッシュで認証成功した場合、新形式に更新
-  if (isValid && !result.password_hash.includes(':')) {
-    const newHash = await hashPassword(password);
-    await db.prepare(
-      'UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
-    ).bind(newHash, userId).run();
-    console.log(`Upgraded password hash to PBKDF2 for user ${userId}`);
-  }
-
-  return isValid;
+  return verifyPasswordHash(password, result.password_hash);
 }
 
 export async function setUserPassword(db: D1Database, userId: string, password: string): Promise<void> {
