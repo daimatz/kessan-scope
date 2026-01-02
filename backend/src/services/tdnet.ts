@@ -35,7 +35,19 @@ export function isEarningsPresentation(title: string): boolean {
     title.includes('決算補足') ||
     title.includes('説明会資料') ||
     title.includes('プレゼンテーション資料') ||
-    title.includes('決算資料')
+    title.includes('決算資料') ||
+    title.includes('業績説明') ||
+    title.includes('投資家説明') ||
+    title.includes('投資家向け説明') ||
+    title.includes('決算プレゼン') ||
+    title.includes('説明資料') ||
+    title.includes('決算概要') ||
+    title.includes('業績概要') ||
+    title.includes('決算ハイライト') ||
+    title.includes('IR資料') ||
+    title.includes('Earnings') ||
+    title.includes('Financial Results') ||
+    title.includes('Presentation')
   );
 }
 
@@ -94,20 +106,59 @@ export function determineFiscalQuarter(title: string): number {
   if (isMidTermPlan(title) || isStrategyDocument(title)) {
     return 0;
   }
-  if (title.includes('第1四半期') || title.includes('第１四半期')) return 1;
-  if (title.includes('第2四半期') || title.includes('第２四半期') || title.includes('中間')) return 2;
-  if (title.includes('第3四半期') || title.includes('第３四半期')) return 3;
-  if (title.includes('通期') || title.includes('期末') || (!title.includes('四半期'))) return 4;
+
+  // 「1Q」「Q1」「第1四半期」などのパターン
+  if (/[^0-9]1Q|Q1[^0-9]|第1四半期|第１四半期/i.test(title)) return 1;
+  if (/[^0-9]2Q|Q2[^0-9]|第2四半期|第２四半期|中間/i.test(title)) return 2;
+  if (/[^0-9]3Q|Q3[^0-9]|第3四半期|第３四半期/i.test(title)) return 3;
+  if (/[^0-9]4Q|Q4[^0-9]|第4四半期|第４四半期|通期|期末|FullYear|Full Year|Annual/i.test(title)) return 4;
+
+  // 「四半期」を含まない決算短信・説明資料は通期(Q4)
+  if ((isEarningsSummary(title) || isEarningsPresentation(title)) && !title.includes('四半期')) {
+    return 4;
+  }
+
   return 0;
+}
+
+// 和暦から西暦に変換
+function convertJapaneseEraToYear(era: string, year: number): number {
+  switch (era) {
+    case '令和': return 2018 + year;  // 令和元年 = 2019年
+    case '平成': return 1988 + year;  // 平成元年 = 1989年
+    case '昭和': return 1925 + year;  // 昭和元年 = 1926年
+    default: return year;
+  }
 }
 
 // 年度を判定（タイトルまたは発表日から）
 export function determineFiscalYear(title: string, pubdate?: string): string {
-  // "2026年3月期" or "令和8年3月期" などのパターン
-  const match = title.match(/(\d{4})年\d{1,2}月期/);
-  if (match) {
-    // 3月期の場合、2026年3月期 → 2025年度
-    return String(parseInt(match[1], 10) - 1);
+  // "FY2026.6" or "FY2026" パターン（英語表記）
+  // FY2026.6 = 2026年6月期 = 2025年度
+  const fyMatch = title.match(/FY\s*(\d{4})(?:\.(\d{1,2}))?/i);
+  if (fyMatch) {
+    const year = parseInt(fyMatch[1], 10);
+    return String(year - 1);
+  }
+
+  // "2026年3月期" 西暦パターン
+  const jpMatch = title.match(/(\d{4})年\d{1,2}月期/);
+  if (jpMatch) {
+    return String(parseInt(jpMatch[1], 10) - 1);
+  }
+
+  // "平成26年3月期" or "令和6年3月期" 和暦パターン
+  // "平成28年度3月期" のような変則パターンも対応
+  const eraMatch = title.match(/(令和|平成|昭和)(\d{1,2})年度?\d{1,2}月期/);
+  if (eraMatch) {
+    const westernYear = convertJapaneseEraToYear(eraMatch[1], parseInt(eraMatch[2], 10));
+    return String(westernYear - 1);
+  }
+
+  // "2025年度" パターン（そのまま使用）
+  const nendoMatch = title.match(/(\d{4})年度/);
+  if (nendoMatch) {
+    return nendoMatch[1];
   }
 
   // 中期経営計画など年度表記がない場合は発表日から判定

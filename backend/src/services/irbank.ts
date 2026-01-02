@@ -27,7 +27,8 @@ export class IrbankClient {
   // 銘柄のドキュメントID一覧を取得
   async getDocumentIds(stockCode: string): Promise<string[]> {
     const code = stockCode.slice(0, 4);
-    const url = `https://irbank.net/${code}`;
+    // /ir ページに全IRドキュメントのリストがある（トップページは一部のみ）
+    const url = `https://irbank.net/${code}/ir`;
 
     const response = await fetch(url, {
       headers: { 'User-Agent': this.userAgent },
@@ -68,11 +69,23 @@ export class IrbankClient {
       return null;
     }
 
-    // タイトルを抽出: <title>...</title> or <h1>...</h1>
+    // タイトルを抽出
+    // IRBankのtitleタグは「4385 メルカリ | FY2026.6 1Q決算説明資料（2025/11/07 15:30提出）」形式
+    let title = '';
+
     const titleMatch = html.match(/<title>([^<]+)<\/title>/);
-    let title = titleMatch ? titleMatch[1] : '';
-    // "銘柄名 - IRBANK" のような形式から前半を取得
-    title = title.split(' - ')[0].trim();
+    if (titleMatch) {
+      const fullTitle = titleMatch[1];
+      // "銘柄コード 銘柄名 | ドキュメントタイトル（日付）" から抽出
+      const pipeIndex = fullTitle.indexOf(' | ');
+      if (pipeIndex !== -1) {
+        // | 以降を取得し、末尾の（日付）を除去
+        title = fullTitle.slice(pipeIndex + 3).replace(/（\d{4}\/\d{2}\/\d{2}[^）]*）$/, '').trim();
+      } else {
+        // | がない場合は " - " で分割
+        title = fullTitle.split(' - ')[0].trim();
+      }
+    }
 
     // 日付をYYYY-MM-DD形式に変換
     const dateStr = pdfMatch[1];
