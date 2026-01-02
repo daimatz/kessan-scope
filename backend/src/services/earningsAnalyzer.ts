@@ -61,8 +61,8 @@ const DOCUMENT_TYPE_PRIORITY: DocumentType[] = [
 // 最大PDF数（Claude APIの制限とコストを考慮）
 const MAX_PDFS_PER_ANALYSIS = 2;
 
-// PDFサイズ上限（5MB - 大きすぎるPDFはスキップ）
-const MAX_PDF_SIZE = 5 * 1024 * 1024;
+// PDFサイズ上限（32MB - Claude APIの上限）
+const MAX_PDF_SIZE = 32 * 1024 * 1024;
 
 // EarningsRelease に対して分析を実行（複数PDF対応）
 export async function analyzeEarningsRelease(
@@ -221,8 +221,6 @@ export interface RegenerateResult {
   skipped: number;
 }
 
-const REGENERATE_PARALLEL_LIMIT = 3;
-
 // リリースからPDFドキュメントを取得するヘルパー
 async function getPdfDocumentsForRelease(
   env: Env,
@@ -360,7 +358,7 @@ async function regenerateOneRelease(
   }
 }
 
-// ウォッチリストアイテムのカスタム分析を再生成（3並列）
+// ウォッチリストアイテムのカスタム分析を再生成（逐次処理、Queue の max_concurrency で並列制御）
 export async function regenerateCustomAnalysis(
   env: Env,
   watchlistItem: WatchlistItem
@@ -378,26 +376,20 @@ export async function regenerateCustomAnalysis(
   let cached = 0;
   let skipped = 0;
 
-  // 3並列で処理
-  for (let i = 0; i < allReleases.length; i += REGENERATE_PARALLEL_LIMIT) {
-    const batch = allReleases.slice(i, i + REGENERATE_PARALLEL_LIMIT);
+  // 逐次処理（Queue の max_concurrency で異なる銘柄間の並列制御）
+  for (const release of allReleases) {
+    const result = await regenerateOneRelease(env, claude, release, userId, customPrompt);
 
-    const results = await Promise.all(
-      batch.map(release => regenerateOneRelease(env, claude, release, userId, customPrompt))
-    );
-
-    for (const result of results) {
-      switch (result) {
-        case 'regenerated':
-          regenerated++;
-          break;
-        case 'cached':
-          cached++;
-          break;
-        case 'skipped':
-          skipped++;
-          break;
-      }
+    switch (result) {
+      case 'regenerated':
+        regenerated++;
+        break;
+      case 'cached':
+        cached++;
+        break;
+      case 'skipped':
+        skipped++;
+        break;
     }
   }
 

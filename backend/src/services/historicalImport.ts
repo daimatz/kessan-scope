@@ -15,8 +15,6 @@ import { fetchAndStorePdf } from './pdfStorage';
 import { MailerSendClient } from './mailersend';
 import type { Env, ImportQueueMessage, ReleaseType, DocumentType } from '../types';
 
-const PARALLEL_LIMIT = 3;
-
 // ウォッチリスト追加時に呼び出す：Queueにメッセージを送信
 export async function enqueueHistoricalImport(
   queue: Queue<ImportQueueMessage>,
@@ -155,34 +153,27 @@ export async function processImportBatch(
   let skipped = 0;
   const releasesToAnalyze = new Map<string, boolean>(); // releaseId -> isNewRelease
 
-  // PARALLEL_LIMIT 件ずつ並列処理（インポートのみ）
-  for (let i = 0; i < classifiedDocs.length; i += PARALLEL_LIMIT) {
-    const batch = classifiedDocs.slice(i, i + PARALLEL_LIMIT);
+  // 逐次処理（Queue の max_concurrency で並列制御）
+  for (const doc of classifiedDocs) {
+    const result = await processDocument(env, stockCode, doc, existingHashes);
 
-    const results = await Promise.all(
-      batch.map(doc => processDocument(env, stockCode, doc, existingHashes))
-    );
+    if (result.imported && result.hash) {
+      existingHashes.add(result.hash);
+      imported++;
 
-    // 結果を集計し、新しいハッシュを追加
-    for (const result of results) {
-      if (result.imported && result.hash) {
-        existingHashes.add(result.hash);
-        imported++;
-
-        // 分析対象のリリースを記録
-        if (result.releaseId) {
-          // isNewRelease が false（既存リリースに追加）の場合は再分析が必要
-          const currentIsNew = releasesToAnalyze.get(result.releaseId);
-          if (currentIsNew === undefined) {
-            releasesToAnalyze.set(result.releaseId, result.isNewRelease ?? true);
-          } else if (currentIsNew && result.isNewRelease === false) {
-            // 新規だったが後から追加ドキュメントが来た場合
-            releasesToAnalyze.set(result.releaseId, false);
-          }
+      // 分析対象のリリースを記録
+      if (result.releaseId) {
+        // isNewRelease が false（既存リリースに追加）の場合は再分析が必要
+        const currentIsNew = releasesToAnalyze.get(result.releaseId);
+        if (currentIsNew === undefined) {
+          releasesToAnalyze.set(result.releaseId, result.isNewRelease ?? true);
+        } else if (currentIsNew && result.isNewRelease === false) {
+          // 新規だったが後から追加ドキュメントが来た場合
+          releasesToAnalyze.set(result.releaseId, false);
         }
-      } else {
-        skipped++;
       }
+    } else {
+      skipped++;
     }
   }
 
