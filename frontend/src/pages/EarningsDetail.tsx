@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { earningsAPI, chatAPI, parseCustomAnalysis } from '../api';
 
@@ -7,11 +7,25 @@ type AnalysisTab = 'standard' | 'custom';
 
 export default function EarningsDetail() {
   const { id } = useParams<{ id: string }>();
+  const location = useLocation();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [message, setMessage] = useState('');
   const [showPdf, setShowPdf] = useState(false);
   const [expandedHistory, setExpandedHistory] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<AnalysisTab>('standard');
+
+  // URLからタブ状態を読み取り
+  const searchParams = new URLSearchParams(location.search);
+  const activeTab: AnalysisTab = searchParams.get('tab') === 'custom' ? 'custom' : 'standard';
+
+  // タブ変更時にURLを更新
+  const handleTabChange = (tab: AnalysisTab) => {
+    if (tab === 'custom') {
+      navigate(`${location.pathname}?tab=custom`, { replace: true });
+    } else {
+      navigate(location.pathname, { replace: true });
+    }
+  };
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['earnings', id],
@@ -32,6 +46,10 @@ export default function EarningsDetail() {
       setMessage('');
     },
   });
+
+  // カスタム分析をパース（早期リターンの前にフックを配置）
+  const userAnalysis = data?.userAnalysis ?? null;
+  const customAnalysis = useMemo(() => parseCustomAnalysis(userAnalysis), [userAnalysis]);
 
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,13 +73,15 @@ export default function EarningsDetail() {
     );
   }
 
-  const { earnings, userAnalysis, userPromptUsed, notifiedAt, analysisHistory } = data;
+  const { earnings, userPromptUsed, notifiedAt, analysisHistory, prevEarnings, nextEarnings } = data;
   const messages = chatData?.messages || [];
   const pdfUrl = earnings.r2_key ? earningsAPI.getPdfUrl(id!) : null;
-
-  // カスタム分析をパース
-  const customAnalysis = useMemo(() => parseCustomAnalysis(userAnalysis), [userAnalysis]);
   const hasCustomAnalysis = customAnalysis !== null && (customAnalysis.overview || customAnalysis.analysis);
+
+  // 前後ナビゲーションのURL（タブ状態を維持）
+  const tabQuery = activeTab === 'custom' ? '?tab=custom' : '';
+  const prevUrl = prevEarnings ? `/earnings/${prevEarnings.id}${tabQuery}` : null;
+  const nextUrl = nextEarnings ? `/earnings/${nextEarnings.id}${tabQuery}` : null;
 
   return (
     <div className="page earnings-detail">
@@ -73,9 +93,27 @@ export default function EarningsDetail() {
           {' / '}
           {earnings.fiscal_year}Q{earnings.fiscal_quarter}
         </div>
-        <h1>
-          {earnings.stock_code} - {earnings.fiscal_year}年 Q{earnings.fiscal_quarter}
-        </h1>
+        <div className="title-with-nav">
+          <h1>
+            {earnings.stock_code} - {earnings.fiscal_year}年 Q{earnings.fiscal_quarter}
+          </h1>
+          <nav className="earnings-nav">
+            {prevUrl ? (
+              <Link to={prevUrl} className="nav-link nav-prev">
+                ← {prevEarnings!.fiscal_year}Q{prevEarnings!.fiscal_quarter}
+              </Link>
+            ) : (
+              <span className="nav-link nav-prev disabled">← 前</span>
+            )}
+            {nextUrl ? (
+              <Link to={nextUrl} className="nav-link nav-next">
+                {nextEarnings!.fiscal_year}Q{nextEarnings!.fiscal_quarter} →
+              </Link>
+            ) : (
+              <span className="nav-link nav-next disabled">次 →</span>
+            )}
+          </nav>
+        </div>
         <div className="meta">
           <span>発表日: {earnings.announcement_date}</span>
           {earnings.document_title && (
@@ -127,14 +165,14 @@ export default function EarningsDetail() {
           <div className="analysis-tabs">
             <button
               className={`analysis-tab ${activeTab === 'standard' ? 'active' : ''}`}
-              onClick={() => setActiveTab('standard')}
+              onClick={() => handleTabChange('standard')}
               disabled={!earnings.summary}
             >
               📊 標準分析
             </button>
             <button
               className={`analysis-tab ${activeTab === 'custom' ? 'active' : ''}`}
-              onClick={() => setActiveTab('custom')}
+              onClick={() => handleTabChange('custom')}
               disabled={!hasCustomAnalysis}
             >
               🎯 カスタム分析

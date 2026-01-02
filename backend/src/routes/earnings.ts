@@ -43,6 +43,14 @@ earnings.get('/:id', async (c) => {
   // カスタム分析履歴を取得
   const analysisHistory = await getCustomAnalysisHistory(c.env.DB, userId, id);
 
+  // 同じ銘柄の前後の決算を取得（時系列ナビゲーション用）
+  const allEarnings = await getEarnings(c.env.DB, earningsData.stock_code);
+  const currentIndex = allEarnings.findIndex(e => e.id === id);
+  // allEarnings は announcement_date DESC でソートされている
+  // 次（新しい）= currentIndex - 1, 前（古い）= currentIndex + 1
+  const nextEarnings = currentIndex > 0 ? allEarnings[currentIndex - 1] : null;
+  const prevEarnings = currentIndex < allEarnings.length - 1 ? allEarnings[currentIndex + 1] : null;
+
   // サマリーをパース
   let summary: EarningsSummary | null = null;
   if (earningsData.summary) {
@@ -93,6 +101,17 @@ earnings.get('/:id', async (c) => {
       analysis: h.analysis,
       created_at: h.created_at,
     })),
+    // 前後の決算（時系列ナビゲーション用）
+    prevEarnings: prevEarnings ? {
+      id: prevEarnings.id,
+      fiscal_year: prevEarnings.fiscal_year,
+      fiscal_quarter: prevEarnings.fiscal_quarter,
+    } : null,
+    nextEarnings: nextEarnings ? {
+      id: nextEarnings.id,
+      fiscal_year: nextEarnings.fiscal_year,
+      fiscal_quarter: nextEarnings.fiscal_quarter,
+    } : null,
   });
 });
 

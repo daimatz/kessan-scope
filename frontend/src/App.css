@@ -674,9 +674,49 @@ input:focus, textarea:focus, select:focus {
   margin-bottom: 32px;
 }
 
-.detail-header h1 {
+.title-with-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
   margin-bottom: 12px;
+}
+
+.detail-header h1 {
+  margin-bottom: 0;
   font-size: 36px;
+}
+
+.earnings-nav {
+  display: flex;
+  gap: 12px;
+}
+
+.nav-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: all 0.2s;
+}
+
+.nav-link:not(.disabled) {
+  background: var(--gray-100);
+  color: var(--gray-700);
+}
+
+.nav-link:not(.disabled):hover {
+  background: var(--gray-200);
+  text-decoration: none;
+}
+
+.nav-link.disabled {
+  background: var(--gray-50);
+  color: var(--gray-300);
+  cursor: not-allowed;
 }
 
 .meta {
@@ -1030,6 +1070,22 @@ input:focus, textarea:focus, select:focus {
 
   .detail-header h1 {
     font-size: 24px;
+  }
+
+  .title-with-nav {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .earnings-nav {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .nav-link {
+    padding: 6px 12px;
+    font-size: 13px;
   }
 
   .form-row {

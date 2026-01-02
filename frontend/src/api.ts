@@ -169,12 +169,20 @@ export interface AnalysisHistoryItem {
   created_at: string;
 }
 
+export interface EarningsNavItem {
+  id: string;
+  fiscal_year: string;
+  fiscal_quarter: number;
+}
+
 export interface EarningsDetailResponse {
   earnings: EarningsDetail;
   userAnalysis: string | null;
   userPromptUsed: string | null;
   notifiedAt: string | null;
   analysisHistory: AnalysisHistoryItem[];
+  prevEarnings: EarningsNavItem | null;
+  nextEarnings: EarningsNavItem | null;
 }
 
 export interface EarningsSummary {
