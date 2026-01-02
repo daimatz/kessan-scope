@@ -1239,6 +1239,17 @@ input:focus, textarea:focus, select:focus {
   border-color: var(--primary);
 }
 
+/* Custom Analysis Content */
+.custom-analysis-content {
+  margin-top: 16px;
+}
+
+.analysis-meta {
+  margin-bottom: 12px;
+  color: var(--gray-500);
+  font-size: 13px;
+}
+
 /* Empty Analysis State */
 .empty-analysis {
   text-align: center;

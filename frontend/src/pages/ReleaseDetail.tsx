@@ -16,7 +16,7 @@ export default function ReleaseDetail() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
   const [analysisTab, setAnalysisTab] = useState<AnalysisTab>('standard');
-  const [expandedHistory, setExpandedHistory] = useState<number | null>(null);
+  const [selectedPromptIndex, setSelectedPromptIndex] = useState<number>(0);
   const chatMessagesRef = useRef<HTMLDivElement>(null);
 
   const { data, isLoading, error } = useQuery({
@@ -315,75 +315,82 @@ export default function ReleaseDetail() {
               )}
 
               {/* カスタム分析タブ */}
-              {analysisTab === 'custom' && customAnalysis && (
+              {analysisTab === 'custom' && (customAnalysis || analysisHistory.length > 0) && (
                 <div className="tab-content">
-                  <h2>カスタム分析</h2>
-                  {customAnalysis.overview && (
-                    <p className="overview">{customAnalysis.overview}</p>
-                  )}
-
-                  {(customAnalysis.highlights.length > 0 || customAnalysis.lowlights.length > 0) && (
-                    <div className="highlights-grid">
-                      <div className="highlight-section">
-                        <h3>ハイライト</h3>
-                        {customAnalysis.highlights.length > 0 ? (
-                          <ul className="highlight-list positive">
-                            {customAnalysis.highlights.map((h, i) => (
-                              <li key={i}>{h}</li>
-                            ))}
-                          </ul>
-                        ) : (
-                          <p className="empty">情報なし</p>
-                        )}
-                      </div>
-
-                      <div className="highlight-section">
-                        <h3>ローライト</h3>
-                        {customAnalysis.lowlights.length > 0 ? (
-                          <ul className="highlight-list negative">
-                            {customAnalysis.lowlights.map((l, i) => (
-                              <li key={i}>{l}</li>
-                            ))}
-                          </ul>
-                        ) : (
-                          <p className="empty">情報なし</p>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {customAnalysis.analysis && (
-                    <div className="custom-analysis">{customAnalysis.analysis}</div>
-                  )}
-
-                  {/* 分析履歴 */}
+                  {/* 分析軸セレクター */}
                   {analysisHistory.length > 0 && (
-                    <div className="analysis-history">
-                      <h3>分析履歴 ({analysisHistory.length}件)</h3>
-                      {analysisHistory.map((item, index) => (
-                        <div key={index} className="history-item">
-                          <div
-                            className="history-header"
-                            onClick={() => setExpandedHistory(expandedHistory === index ? null : index)}
+                    <div className="prompt-selector">
+                      <span className="prompt-selector-label">分析軸:</span>
+                      <div className="prompt-buttons">
+                        {analysisHistory.map((item, index) => (
+                          <button
+                            key={index}
+                            className={`prompt-button ${selectedPromptIndex === index ? 'active' : ''}`}
+                            onClick={() => setSelectedPromptIndex(index)}
+                            title={item.prompt}
                           >
-                            <div className="history-prompt">{item.prompt}</div>
-                            <div className="history-meta">
-                              <span className="history-date">
-                                {new Date(item.created_at).toLocaleString('ja-JP')}
-                              </span>
-                              <span className="history-toggle">
-                                {expandedHistory === index ? '▼' : '▶'}
-                              </span>
-                            </div>
-                          </div>
-                          {expandedHistory === index && (
-                            <div className="history-content">
-                              <p>{item.analysis}</p>
-                            </div>
-                          )}
-                        </div>
-                      ))}
+                            {item.prompt.length > 20 ? `${item.prompt.substring(0, 20)}...` : item.prompt}
+                          </button>
+                        ))}
+                      </div>
                     </div>
+                  )}
+
+                  {/* 選択中の分析内容 */}
+                  {analysisHistory[selectedPromptIndex] && (
+                    <div className="custom-analysis-content">
+                      <div className="analysis-meta">
+                        <span className="analysis-date">
+                          {new Date(analysisHistory[selectedPromptIndex].created_at).toLocaleString('ja-JP')}
+                        </span>
+                      </div>
+                      <div className="custom-analysis">
+                        {analysisHistory[selectedPromptIndex].analysis}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* analysisHistoryがない場合は customAnalysis を表示 */}
+                  {analysisHistory.length === 0 && customAnalysis && (
+                    <>
+                      {customAnalysis.overview && (
+                        <p className="overview">{customAnalysis.overview}</p>
+                      )}
+
+                      {(customAnalysis.highlights.length > 0 || customAnalysis.lowlights.length > 0) && (
+                        <div className="highlights-grid">
+                          <div className="highlight-section">
+                            <h3>ハイライト</h3>
+                            {customAnalysis.highlights.length > 0 ? (
+                              <ul className="highlight-list positive">
+                                {customAnalysis.highlights.map((h, i) => (
+                                  <li key={i}>{h}</li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p className="empty">情報なし</p>
+                            )}
+                          </div>
+
+                          <div className="highlight-section">
+                            <h3>ローライト</h3>
+                            {customAnalysis.lowlights.length > 0 ? (
+                              <ul className="highlight-list negative">
+                                {customAnalysis.lowlights.map((l, i) => (
+                                  <li key={i}>{l}</li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p className="empty">情報なし</p>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {customAnalysis.analysis && (
+                        <div className="custom-analysis">{customAnalysis.analysis}</div>
+                      )}
+                    </>
                   )}
                 </div>
               )}
