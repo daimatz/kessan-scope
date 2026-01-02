@@ -11,7 +11,13 @@ vi.mock('openai', () => {
             const userMessage = messages.find((m: { role: string }) => m.role === 'user')?.content || '';
 
             // タイトルに基づいてモックレスポンスを返す
-            let response = {
+            let response: {
+              document_type: string;
+              fiscal_year: string | null;
+              fiscal_quarter: number | null;
+              confidence: number;
+              reasoning: string;
+            } = {
               document_type: 'other',
               fiscal_year: null,
               fiscal_quarter: null,

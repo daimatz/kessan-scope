@@ -266,11 +266,11 @@ describe('tdnet パターンマッチング', () => {
       it.each([
         ['中期経営計画（2024-2027）', 0],
         ['新中期経営方針について', 0],
-        '事業戦略説明会資料',
-        '経営戦略について',
-        '資本政策について',
-      ])('%s → Q0', (title) => {
-        expect(determineFiscalQuarter(title)).toBe(0);
+        ['事業戦略説明会資料', 0],
+        ['経営戦略について', 0],
+        ['資本政策について', 0],
+      ])('%s → Q%d', (title, expected) => {
+        expect(determineFiscalQuarter(title)).toBe(expected);
       });
     });
   });
