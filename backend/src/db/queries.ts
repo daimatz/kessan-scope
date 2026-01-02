@@ -475,15 +475,26 @@ export async function createEarningsWithRelease(db: D1Database, data: {
   return earnings;
 }
 
+// リリース用のユーザー分析型
+export interface UserReleaseAnalysis {
+  id: string;
+  user_id: string;
+  release_id: string;
+  custom_analysis: string | null;
+  custom_prompt_used: string | null;
+  notified_at: string | null;
+  created_at: string;
+}
+
 // リリース用のユーザー分析を取得
 export async function getUserAnalysisByRelease(
   db: D1Database,
   userId: string,
   releaseId: string
-): Promise<UserEarningsAnalysis | null> {
+): Promise<UserReleaseAnalysis | null> {
   const result = await db.prepare(
-    'SELECT * FROM user_earnings_analysis WHERE user_id = ? AND release_id = ?'
-  ).bind(userId, releaseId).first<UserEarningsAnalysis>();
+    'SELECT * FROM user_release_analysis WHERE user_id = ? AND release_id = ?'
+  ).bind(userId, releaseId).first<UserReleaseAnalysis>();
   return result;
 }
 
@@ -493,15 +504,15 @@ export async function createUserAnalysisForRelease(db: D1Database, data: {
   release_id: string;
   custom_analysis: string | null;
   custom_prompt_used?: string | null;
-}): Promise<UserEarningsAnalysis> {
+}): Promise<UserReleaseAnalysis> {
   const id = generateId();
   await db.prepare(
-    'INSERT INTO user_earnings_analysis (id, user_id, release_id, custom_analysis, custom_prompt_used) VALUES (?, ?, ?, ?, ?)'
+    'INSERT INTO user_release_analysis (id, user_id, release_id, custom_analysis, custom_prompt_used) VALUES (?, ?, ?, ?, ?)'
   ).bind(id, data.user_id, data.release_id, data.custom_analysis, data.custom_prompt_used ?? null).run();
 
   const analysis = await db.prepare(
-    'SELECT * FROM user_earnings_analysis WHERE id = ?'
-  ).bind(id).first<UserEarningsAnalysis>();
+    'SELECT * FROM user_release_analysis WHERE id = ?'
+  ).bind(id).first<UserReleaseAnalysis>();
   if (!analysis) throw new Error('Failed to create user analysis for release');
   return analysis;
 }
@@ -515,7 +526,7 @@ export async function updateUserAnalysisForRelease(
   customPromptUsed?: string | null
 ): Promise<void> {
   await db.prepare(
-    'UPDATE user_earnings_analysis SET custom_analysis = ?, custom_prompt_used = ? WHERE user_id = ? AND release_id = ?'
+    'UPDATE user_release_analysis SET custom_analysis = ?, custom_prompt_used = ? WHERE user_id = ? AND release_id = ?'
   ).bind(customAnalysis, customPromptUsed ?? null, userId, releaseId).run();
 }
 
@@ -591,6 +602,16 @@ export async function getPastReleasesForChat(
   return result.results;
 }
 
+// リリース用のカスタム分析履歴型
+export interface ReleaseAnalysisHistory {
+  id: string;
+  user_id: string;
+  release_id: string;
+  custom_prompt: string;
+  analysis: string;
+  created_at: string;
+}
+
 // リリース用のカスタム分析履歴を保存
 export async function saveCustomAnalysisForRelease(
   db: D1Database,
@@ -601,7 +622,7 @@ export async function saveCustomAnalysisForRelease(
 ): Promise<void> {
   const id = generateId();
   await db.prepare(
-    'INSERT INTO custom_analysis_history (id, user_id, release_id, custom_prompt, analysis) VALUES (?, ?, ?, ?, ?)'
+    'INSERT INTO release_analysis_history (id, user_id, release_id, custom_prompt, analysis) VALUES (?, ?, ?, ?, ?)'
   ).bind(id, userId, releaseId, customPrompt, analysis).run();
 }
 
@@ -610,10 +631,10 @@ export async function getCustomAnalysisHistoryForRelease(
   db: D1Database,
   userId: string,
   releaseId: string
-): Promise<CustomAnalysisHistory[]> {
+): Promise<ReleaseAnalysisHistory[]> {
   const result = await db.prepare(
-    'SELECT * FROM custom_analysis_history WHERE user_id = ? AND release_id = ? ORDER BY created_at DESC'
-  ).bind(userId, releaseId).all<CustomAnalysisHistory>();
+    'SELECT * FROM release_analysis_history WHERE user_id = ? AND release_id = ? ORDER BY created_at DESC'
+  ).bind(userId, releaseId).all<ReleaseAnalysisHistory>();
   return result.results;
 }
 
@@ -626,7 +647,7 @@ export async function findCachedAnalysisForRelease(
 ): Promise<string | null> {
   // まず現在の分析をチェック
   const current = await db.prepare(
-    'SELECT custom_analysis FROM user_earnings_analysis WHERE user_id = ? AND release_id = ? AND custom_prompt_used = ?'
+    'SELECT custom_analysis FROM user_release_analysis WHERE user_id = ? AND release_id = ? AND custom_prompt_used = ?'
   ).bind(userId, releaseId, customPrompt).first<{ custom_analysis: string | null }>();
 
   if (current?.custom_analysis) {
@@ -635,7 +656,7 @@ export async function findCachedAnalysisForRelease(
 
   // 履歴からチェック
   const history = await db.prepare(
-    'SELECT analysis FROM custom_analysis_history WHERE user_id = ? AND release_id = ? AND custom_prompt = ? ORDER BY created_at DESC LIMIT 1'
+    'SELECT analysis FROM release_analysis_history WHERE user_id = ? AND release_id = ? AND custom_prompt = ? ORDER BY created_at DESC LIMIT 1'
   ).bind(userId, releaseId, customPrompt).first<{ analysis: string }>();
 
   return history?.analysis ?? null;

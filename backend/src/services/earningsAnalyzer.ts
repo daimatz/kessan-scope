@@ -101,6 +101,19 @@ export async function analyzeEarningsDocument(
   return { summary, customAnalysisCount };
 }
 
+// ドキュメントタイプの優先順位（分析に使用するPDFの優先順位）
+const DOCUMENT_TYPE_PRIORITY: DocumentType[] = [
+  'earnings_summary',       // 決算短信を最優先
+  'earnings_presentation',  // 決算説明資料
+  'growth_potential',       // 成長可能性資料
+];
+
+// 最大PDF数（Claude APIの制限とコストを考慮）
+const MAX_PDFS_PER_ANALYSIS = 2;
+
+// PDFサイズ上限（5MB - 大きすぎるPDFはスキップ）
+const MAX_PDF_SIZE = 5 * 1024 * 1024;
+
 // EarningsRelease に対して分析を実行（複数PDF対応）
 export async function analyzeEarningsRelease(
   env: Env,
@@ -119,17 +132,40 @@ export async function analyzeEarningsRelease(
     return null;
   }
 
-  // 各ドキュメントのPDFを取得
+  // ドキュメントを優先順位でソート
+  const sortedDocs = [...documents].sort((a, b) => {
+    const priorityA = DOCUMENT_TYPE_PRIORITY.indexOf(a.document_type as DocumentType);
+    const priorityB = DOCUMENT_TYPE_PRIORITY.indexOf(b.document_type as DocumentType);
+    return (priorityA === -1 ? 999 : priorityA) - (priorityB === -1 ? 999 : priorityB);
+  });
+
+  // 各ドキュメントのPDFを取得（上限まで、サイズ制限あり、タイプ重複なし）
   const pdfDocuments: Array<{ buffer: ArrayBuffer; type: DocumentType }> = [];
-  for (const doc of documents) {
+  const usedTypes = new Set<DocumentType>();
+
+  for (const doc of sortedDocs) {
+    if (pdfDocuments.length >= MAX_PDFS_PER_ANALYSIS) break;
     if (!doc.r2_key || !doc.document_type) continue;
+
+    const docType = doc.document_type as DocumentType;
+
+    // 同じタイプのドキュメントは1つだけ使用
+    if (usedTypes.has(docType)) {
+      console.log(`Skipping duplicate document type: ${docType}`);
+      continue;
+    }
 
     const pdfBuffer = await getPdfFromR2(env.PDF_BUCKET, doc.r2_key);
     if (pdfBuffer) {
+      if (pdfBuffer.byteLength > MAX_PDF_SIZE) {
+        console.log(`Skipping large PDF (${(pdfBuffer.byteLength / 1024 / 1024).toFixed(1)}MB): ${docType}`);
+        continue;
+      }
       pdfDocuments.push({
         buffer: pdfBuffer,
-        type: doc.document_type,
+        type: docType,
       });
+      usedTypes.add(docType);
     }
   }
 
@@ -141,12 +177,32 @@ export async function analyzeEarningsRelease(
   const claude = new ClaudeService(env.ANTHROPIC_API_KEY);
 
   // 基本サマリーを生成（複数PDF対応）
-  console.log(`Analyzing ${pdfDocuments.length} PDFs for release ${releaseId}...`);
-  let summary: EarningsSummary;
+  const pdfInfo = pdfDocuments.map(p => `${p.type}(${(p.buffer.byteLength / 1024).toFixed(0)}KB)`).join(', ');
+  console.log(`Analyzing ${pdfDocuments.length} PDFs for release ${releaseId}: [${pdfInfo}]`);
+  let summary: EarningsSummary | null = null;
   try {
     summary = await claude.analyzeEarningsPdfs(pdfDocuments);
   } catch (error) {
     console.error('Failed to analyze PDFs:', error);
+
+    // 複数PDFで失敗した場合、1つずつ試す
+    if (pdfDocuments.length > 1) {
+      console.log('Retrying with single PDF...');
+      for (const pdfDoc of pdfDocuments) {
+        try {
+          summary = await claude.analyzeEarningsPdfs([pdfDoc]);
+          console.log(`Successfully analyzed with ${pdfDoc.type}`);
+          break;
+        } catch (retryError) {
+          console.error(`Failed to analyze ${pdfDoc.type}:`, retryError);
+        }
+      }
+    }
+  }
+
+  // 分析に失敗したら諦める
+  if (!summary) {
+    console.error('All PDF analysis attempts failed for release:', releaseId);
     return null;
   }
 
