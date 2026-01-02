@@ -1924,7 +1924,18 @@ input:focus, textarea:focus, select:focus {
 
 .toggle-btn {
   font-size: 13px;
-  padding: 6px 12px;
+  padding: 8px 16px;
+  border: 1px solid var(--gray-300);
+  border-radius: 6px;
+  background: white;
+  color: var(--gray-700);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.toggle-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
 }
 
 .download-link {
@@ -1941,8 +1952,55 @@ input:focus, textarea:focus, select:focus {
   color: white;
 }
 
+/* Document Tabs */
+.document-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.document-tab {
+  padding: 8px 16px;
+  font-size: 14px;
+  border: 1px solid var(--gray-300);
+  border-radius: 6px;
+  background: white;
+  color: var(--gray-700);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.document-tab:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.document-tab.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+}
+
+/* Selected Document Info */
+.selected-document-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  background: var(--gray-50);
+  border-radius: 8px;
+  margin-bottom: 16px;
+  font-size: 14px;
+  color: var(--gray-700);
+}
+
+.selected-document-info .download-link {
+  flex-shrink: 0;
+}
+
 .pdf-viewer {
-  margin-top: 16px;
   border: 1px solid var(--gray-200);
   border-radius: 8px;
   overflow: hidden;

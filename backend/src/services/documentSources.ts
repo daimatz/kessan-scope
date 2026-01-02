@@ -13,11 +13,6 @@ export interface DocumentCandidate {
   source: 'tdnet' | 'irbank';
 }
 
-// LLM分類結果付きドキュメント
-export interface ClassifiedDocument extends DocumentCandidate {
-  classification: DocumentClassification;
-}
-
 // TdnetDocument を共通形式に変換
 function tdnetToCandidate(doc: TdnetDocument): DocumentCandidate {
   return {
@@ -82,6 +77,11 @@ export async function getDocumentCandidates(
 
   console.log(`Total candidates: ${candidates.length}`);
   return candidates;
+}
+
+// LLM分類結果付きドキュメント
+export interface ClassifiedDocument extends DocumentCandidate {
+  classification: DocumentClassification;
 }
 
 // LLM で分類してフィルタリング
