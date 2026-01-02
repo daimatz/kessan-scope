@@ -5,7 +5,6 @@ import { authAPI, APIError } from './api';
 import Dashboard from './pages/Dashboard';
 import Watchlist from './pages/Watchlist';
 import StockDetail from './pages/StockDetail';
-import EarningsDetail from './pages/EarningsDetail';
 import ReleaseDetail from './pages/ReleaseDetail';
 import Settings from './pages/Settings';
 import Layout from './components/Layout';
@@ -237,7 +236,6 @@ function App() {
               <Route path="/" element={<Dashboard />} />
               <Route path="/watchlist" element={<Watchlist />} />
               <Route path="/stocks/:code" element={<StockDetail />} />
-              <Route path="/earnings/:id" element={<EarningsDetail />} />
               <Route path="/releases/:releaseId" element={<ReleaseDetail />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="*" element={<Navigate to="/" replace />} />

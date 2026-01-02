@@ -6,10 +6,6 @@ import {
   type EarningsSummary,
   type CustomAnalysisSummary,
   type ChatMessage,
-  type EarningsDetail,
-  type EarningsNavItem,
-  type AnalysisByPrompt,
-  type EarningsDetailResponse,
   type ReleaseDocument,
   type ReleaseDetail,
   type ReleaseNavItem,
@@ -18,8 +14,6 @@ import {
   type DashboardRelease,
   type ReleaseListItem,
   type StockReleasesResponse,
-  type EarningsHistory,
-  type StockDetailResponse,
   type ReleaseType,
   type DocumentType,
   parseCustomAnalysis,
@@ -34,10 +28,6 @@ export type {
   EarningsSummary,
   CustomAnalysisSummary,
   ChatMessage,
-  EarningsDetail,
-  EarningsNavItem,
-  AnalysisByPrompt,
-  EarningsDetailResponse,
   ReleaseDocument,
   ReleaseDetail,
   ReleaseNavItem,
@@ -46,8 +36,6 @@ export type {
   DashboardRelease,
   ReleaseListItem,
   StockReleasesResponse,
-  EarningsHistory,
-  StockDetailResponse,
   ReleaseType,
   DocumentType,
 };
@@ -58,18 +46,6 @@ export { parseCustomAnalysis, getDocumentTypeLabel, getReleaseTypeLabel };
 // Frontend 固有の User 型（openai_model を含む）
 export interface User extends SharedUser {
   openai_model: string;
-}
-
-// ダッシュボード用の Earnings 型（frontend 固有）
-export interface Earnings {
-  id: string;
-  stock_code: string;
-  stock_name: string | null;
-  fiscal_year: string;
-  fiscal_quarter: number;
-  announcement_date: string;
-  custom_analysis: string | null;
-  notified_at: string | null;
 }
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
@@ -151,14 +127,7 @@ export const watchlistAPI = {
 
 // Earnings API
 export const earningsAPI = {
-  getAll: () => fetchAPI<{ earnings: Earnings[] }>('/api/earnings'),
   getAllReleases: () => fetchAPI<{ releases: DashboardRelease[] }>('/api/earnings/releases'),
-  getById: (id: string) =>
-    fetchAPI<EarningsDetailResponse>(`/api/earnings/${id}`),
-  getByStock: (code: string) =>
-    fetchAPI<StockDetailResponse>(`/api/earnings/stock/${code}`),
-  getPdfUrl: (id: string) => `${API_BASE}/api/earnings/${id}/pdf`,
-  // Release API (新規)
   getReleaseById: (releaseId: string) =>
     fetchAPI<ReleaseDetailResponse>(`/api/earnings/release/${releaseId}`),
   getReleasesByStock: (code: string) =>
@@ -169,30 +138,6 @@ export const earningsAPI = {
 
 // Chat API
 export const chatAPI = {
-  getMessages: (earningsId: string) =>
-    fetchAPI<{ messages: ChatMessage[] }>(`/api/chat/${earningsId}`),
-  sendMessage: (earningsId: string, message: string) =>
-    fetchAPI<{ userMessage: ChatMessage; assistantMessage: ChatMessage }>(
-      `/api/chat/${earningsId}`,
-      {
-        method: 'POST',
-        body: JSON.stringify({ message }),
-      }
-    ),
-  // ストリーミングでメッセージを送信（イベント別コールバック版）
-  sendMessageStreamV2: (
-    earningsId: string,
-    message: string,
-    callbacks: {
-      onUserMessage: (id: string) => void;
-      onDelta: (content: string) => void;
-      onDone: (id: string) => void;
-      onError: (error: string) => void;
-    }
-  ): Promise<void> => {
-    return streamSSE(`${API_BASE}/api/chat/${earningsId}/stream`, message, callbacks);
-  },
-  // Release Chat API (新規)
   getReleaseMessages: (releaseId: string) =>
     fetchAPI<{ messages: ChatMessage[] }>(`/api/chat/release/${releaseId}`),
   sendReleaseMessageStream: (

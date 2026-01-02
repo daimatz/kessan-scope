@@ -69,8 +69,7 @@ export type DocumentType = z.infer<typeof DocumentTypeSchema>;
 export const ChatMessageSchema = z.object({
   id: z.string(),
   user_id: z.string(),
-  earnings_id: z.string().optional(),
-  release_id: z.string().optional(),
+  release_id: z.string(),
   role: z.enum(['user', 'assistant']),
   content: z.string(),
   created_at: z.string(),
@@ -80,45 +79,6 @@ export type ChatMessage = z.infer<typeof ChatMessageSchema>;
 // ============================================
 // API レスポンススキーマ
 // ============================================
-
-// 決算詳細
-export const EarningsDetailSchema = z.object({
-  id: z.string(),
-  stock_code: z.string(),
-  fiscal_year: z.string(),
-  fiscal_quarter: z.number(),
-  announcement_date: z.string(),
-  document_title: z.string().nullable(),
-  r2_key: z.string().nullable(),
-  summary: EarningsSummarySchema.nullable(),
-  highlights: z.array(z.string()),
-  lowlights: z.array(z.string()),
-});
-export type EarningsDetail = z.infer<typeof EarningsDetailSchema>;
-
-export const EarningsNavItemSchema = z.object({
-  id: z.string(),
-  fiscal_year: z.string(),
-  fiscal_quarter: z.number(),
-});
-export type EarningsNavItem = z.infer<typeof EarningsNavItemSchema>;
-
-export const AnalysisByPromptSchema = z.object({
-  prompt: z.string(),
-  analysis: z.string(),
-  created_at: z.string(),
-});
-export type AnalysisByPrompt = z.infer<typeof AnalysisByPromptSchema>;
-
-export const EarningsDetailResponseSchema = z.object({
-  earnings: EarningsDetailSchema,
-  notifiedAt: z.string().nullable(),
-  availablePrompts: z.array(z.string()),
-  analysesByPrompt: z.array(AnalysisByPromptSchema),
-  prevEarnings: EarningsNavItemSchema.nullable(),
-  nextEarnings: EarningsNavItemSchema.nullable(),
-});
-export type EarningsDetailResponse = z.infer<typeof EarningsDetailResponseSchema>;
 
 // リリース関連
 export const ReleaseDocumentSchema = z.object({
@@ -215,28 +175,6 @@ export const StockReleasesResponseSchema = z.object({
   releases: z.array(ReleaseListItemSchema),
 });
 export type StockReleasesResponse = z.infer<typeof StockReleasesResponseSchema>;
-
-export const EarningsHistorySchema = z.object({
-  id: z.string(),
-  fiscal_year: z.string(),
-  fiscal_quarter: z.number(),
-  announcement_date: z.string(),
-  document_title: z.string().nullable(),
-  has_summary: z.boolean(),
-  has_pdf: z.boolean(),
-  has_custom_analysis: z.boolean(),
-  analysis_history_count: z.number(),
-});
-export type EarningsHistory = z.infer<typeof EarningsHistorySchema>;
-
-export const StockDetailResponseSchema = z.object({
-  stock_code: z.string(),
-  stock_name: z.string().nullable(),
-  custom_prompt: z.string().nullable(),
-  watchlist_id: z.string().nullable(),
-  earnings: z.array(EarningsHistorySchema),
-});
-export type StockDetailResponse = z.infer<typeof StockDetailResponseSchema>;
 
 // ============================================
 // ユーティリティ関数

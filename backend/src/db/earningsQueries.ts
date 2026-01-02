@@ -1,36 +1,7 @@
-// 決算関連クエリ（旧API）
+// 決算関連クエリ
 
 import type { Earnings, DocumentType } from '../types';
 import { generateId } from './utils';
-
-// ダッシュボード用: ウォッチリストの銘柄の決算一覧を取得
-export interface EarningsWithAnalysis {
-  id: string;
-  stock_code: string;
-  stock_name: string | null;
-  fiscal_year: string;
-  fiscal_quarter: number;
-  announcement_date: string;
-  document_title: string | null;
-  r2_key: string | null;
-  summary: string | null;
-  highlights: string | null;
-  lowlights: string | null;
-  custom_analysis: string | null;
-  notified_at: string | null;
-}
-
-export async function getEarningsForDashboard(db: D1Database, userId: string): Promise<EarningsWithAnalysis[]> {
-  const result = await db.prepare(`
-    SELECT e.*, w.stock_name, uea.custom_analysis, uea.notified_at
-    FROM earnings e
-    INNER JOIN watchlist w ON e.stock_code = w.stock_code AND w.user_id = ?
-    LEFT JOIN user_earnings_analysis uea ON e.id = uea.earnings_id AND uea.user_id = ?
-    ORDER BY e.announcement_date DESC
-    LIMIT 50
-  `).bind(userId, userId).all<EarningsWithAnalysis>();
-  return result.results;
-}
 
 // ダッシュボード用: ウォッチリストの銘柄のリリース一覧を取得
 export interface ReleaseForDashboard {
@@ -51,13 +22,6 @@ export async function getReleasesForDashboard(db: D1Database, userId: string): P
     ORDER BY er.fiscal_year DESC, er.fiscal_quarter DESC NULLS LAST
     LIMIT 50
   `).bind(userId).all<ReleaseForDashboard>();
-  return result.results;
-}
-
-export async function getEarnings(db: D1Database, stockCode: string): Promise<Earnings[]> {
-  const result = await db.prepare(
-    'SELECT * FROM earnings WHERE stock_code = ? ORDER BY announcement_date DESC'
-  ).bind(stockCode).all<Earnings>();
   return result.results;
 }
 

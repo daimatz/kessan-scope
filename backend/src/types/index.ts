@@ -95,34 +95,12 @@ export interface Earnings {
   created_at: string;
 }
 
-export interface UserEarningsAnalysis {
-  id: string;
-  user_id: string;
-  earnings_id: string;
-  release_id: string | null;
-  custom_analysis: string | null;
-  custom_prompt_used: string | null;
-  notified_at: string | null;
-  created_at: string;
-}
-
 export interface ChatMessage {
   id: string;
   user_id: string;
-  earnings_id: string;
-  release_id: string | null;
+  release_id: string;
   role: 'user' | 'assistant';
   content: string;
-  created_at: string;
-}
-
-export interface CustomAnalysisHistory {
-  id: string;
-  user_id: string;
-  earnings_id: string;
-  release_id: string | null;
-  custom_prompt: string;
-  analysis: string;
   created_at: string;
 }
 
