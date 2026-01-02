@@ -10,18 +10,28 @@ export class ClaudeService {
     this.model = model;
   }
 
-  // PDFから決算内容を解析
+  // PDFから決算内容を解析（事業家目線で戦略分析）
   async analyzeEarningsPdf(pdfBuffer: ArrayBuffer): Promise<EarningsSummary> {
     const base64Pdf = this.arrayBufferToBase64(pdfBuffer);
 
-    const systemPrompt = `あなたは日本株の決算分析の専門家です。
-決算短信PDFを分析し、以下の情報をJSON形式で抽出してください。
+    const systemPrompt = `あなたは事業戦略コンサルタントです。決算短信を事業家目線で分析してください。
 
-出力JSON形式:
+【分析の視点】
+- 単なる数字の良し悪しではなく、経営陣の意思決定の背景を読み解く
+- 事業ポートフォリオの変化、投資判断の意図を深掘りする
+- セグメント別の戦略的重点や撤退/拡大の兆候を見抜く
+- 競合環境の変化に対する経営の対応姿勢を分析する
+- 中長期的な事業構造の転換を示唆する動きを捉える
+
+【出力JSON形式】
 {
-  "overview": "決算の総評（200文字程度）",
-  "highlights": ["良かった点を1つずつリスト（3-5項目）"],
-  "lowlights": ["懸念事項を1つずつリスト（3-5項目）"],
+  "overview": "この決算から読み取れる経営の戦略的意図と事業の方向性（300文字程度、数字の羅列ではなく戦略の本質を記述）",
+  "highlights": [
+    "戦略的に注目すべきポジティブな動き（投資判断、事業再編、競争優位性の強化など）を具体的に（3-5項目）"
+  ],
+  "lowlights": [
+    "戦略上のリスクや経営課題（構造的問題、競合劣位、投資の失敗兆候など）を具体的に（3-5項目）"
+  ],
   "keyMetrics": {
     "revenue": "売上高（単位付き）",
     "operatingIncome": "営業利益（単位付き）",
@@ -30,7 +40,7 @@ export class ClaudeService {
   }
 }
 
-重要: JSON形式のみを出力してください。説明文は不要です。`;
+重要: JSON形式のみを出力してください。表面的な数字の増減ではなく、その背景にある経営判断を読み解いてください。`;
 
     const response = await this.client.messages.create({
       model: this.model,
@@ -95,13 +105,17 @@ export class ClaudeService {
             },
             {
               type: 'text',
-              text: `あなたは日本株の決算分析の専門家です。
-以下の観点でこの決算短信を分析してください。
+              text: `あなたは事業戦略コンサルタントです。以下の観点でこの決算短信を深掘り分析してください。
 
-分析観点:
+【分析観点】
 ${customPrompt}
 
-日本語で、具体的な数字を引用しながら分析してください。`,
+【分析のポイント】
+- 表面的な数字ではなく、経営判断の背景と意図を読み解く
+- 事業戦略の変化や競争環境への対応を具体的に指摘する
+- 将来の事業展開への示唆を含める
+
+日本語で、具体的な根拠を示しながら分析してください。`,
             },
           ],
         },
@@ -122,8 +136,13 @@ ${customPrompt}
     messages: Array<{ role: 'user' | 'assistant'; content: string }>,
     userMessage: string
   ): Promise<string> {
-    const systemPrompt = `あなたは日本株の決算分析の専門家です。
-以下の決算情報について、ユーザーの質問に答えてください。
+    const systemPrompt = `あなたは事業戦略コンサルタントです。決算情報について、事業家目線で質問に答えてください。
+
+【重要な姿勢】
+- 株価や投資リターンには一切言及しない
+- 経営判断の背景、事業戦略の意図を深掘りする
+- セグメント別の戦略的意思決定を読み解く
+- 競争環境の変化と経営の対応を分析する
 
 決算サマリー:
 ${JSON.stringify(earningsSummary, null, 2)}`;

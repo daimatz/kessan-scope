@@ -1,6 +1,7 @@
 // Cloudflare Workers Bindings
 export interface Env {
   DB: D1Database;
+  PDF_BUCKET: R2Bucket;
   IMPORT_QUEUE: Queue<ImportQueueMessage>;
   ANTHROPIC_API_KEY: string;
   MAILERSEND_API_KEY: string;
@@ -47,7 +48,9 @@ export interface Earnings {
   fiscal_year: string;
   fiscal_quarter: number;
   announcement_date: string;
-  edinet_doc_id: string | null;
+  content_hash: string | null;   // PDF の MD5 ハッシュ
+  r2_key: string | null;         // R2 オブジェクトキー
+  document_title: string | null; // ドキュメントタイトル
   raw_data: string | null;
   summary: string | null;
   highlights: string | null;

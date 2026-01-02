@@ -9,6 +9,11 @@ binding = "DB"
 database_name = "stock-watcher-db"
 database_id = "placeholder" # wrangler d1 create で取得後に更新
 
+# R2 Bucket (PDF storage)
+[[r2_buckets]]
+binding = "PDF_BUCKET"
+bucket_name = "stock-watcher-pdfs"
+
 [vars]
 FRONTEND_URL = "http://localhost:5173"
 # ENVIRONMENT = "production"  # 本番デプロイ時に設定（/internal/* を無効化）

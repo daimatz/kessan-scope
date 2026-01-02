@@ -1,10 +1,7 @@
-import {
-  TdnetClient,
-  determineFiscalYear,
-  determineFiscalQuarter,
-} from './tdnet';
-import { createEarnings, getEarnings } from '../db/queries';
+import { getDocumentCandidates, determineFiscalYear, determineFiscalQuarter, getDocumentType } from './documentSources';
+import { createEarnings, getExistingContentHashes, checkUrlExists } from '../db/queries';
 import { analyzeEarningsDocument } from './earningsAnalyzer';
+import { fetchAndStorePdf } from './pdfStorage';
 import type { Env, ImportQueueMessage } from '../types';
 
 // ウォッチリスト追加時に呼び出す：Queueにメッセージを送信
@@ -21,88 +18,83 @@ export async function enqueueHistoricalImport(
   console.log(`Enqueued historical import for ${stockCode}`);
 }
 
-// Queue Consumerで呼び出す：TDnetから決算データをインポート
+// Queue Consumerで呼び出す：TDnet + IRBANK から決算データをインポート
 export async function processImportBatch(
   env: Env,
   message: ImportQueueMessage
 ): Promise<void> {
   const { stockCode } = message;
-  const client = new TdnetClient();
 
-  console.log(`Importing earnings for ${stockCode} from TDnet...`);
+  console.log(`Importing earnings for ${stockCode}...`);
 
-  // 既存の決算データを取得（重複防止）
-  const existingEarnings = await getEarnings(env.DB, stockCode);
-  const existingKeys = new Set(
-    existingEarnings.map((e) => `${e.fiscal_year}-${e.fiscal_quarter}`)
-  );
+  // 既存の content_hash を取得（重複防止）
+  const existingHashes = await getExistingContentHashes(env.DB, stockCode);
+  console.log(`Found ${existingHashes.size} existing documents`);
+
+  // TDnet + IRBANK からドキュメント候補を取得
+  const candidates = await getDocumentCandidates(stockCode);
 
   let imported = 0;
   let skipped = 0;
 
-  try {
-    // TDnetから銘柄の全開示情報を取得
-    const documents = await client.getDocumentsByStock(stockCode);
-    console.log(`Found ${documents.length} documents for ${stockCode}`);
+  for (const doc of candidates) {
+    const fiscalYear = determineFiscalYear(doc.title, doc.pubdate);
+    const fiscalQuarter = determineFiscalQuarter(doc.title);
+    const docType = getDocumentType(doc.title);
 
-    // 決算短信のみフィルタリング
-    const earningsSummaries = client.filterEarningsSummaries(documents);
-    console.log(`Found ${earningsSummaries.length} earnings summaries`);
-
-    for (const doc of earningsSummaries) {
-      const fiscalYear = determineFiscalYear(doc.title);
-      const fiscalQuarter = determineFiscalQuarter(doc.title);
-
-      if (!fiscalYear || fiscalQuarter === 0) {
-        console.log(`Skipping (cannot parse): ${doc.title}`);
-        skipped++;
-        continue;
-      }
-
-      // 同じ年度・四半期のデータが既にあればスキップ
-      const key = `${fiscalYear}-${fiscalQuarter}`;
-      if (existingKeys.has(key)) {
-        skipped++;
-        continue;
-      }
-
-      try {
-        // 日付を抽出 (pubdate: "2025-11-05 14:25:00" → "2025-11-05")
-        const announcementDate = doc.pubdate.split(' ')[0];
-
-        const earnings = await createEarnings(env.DB, {
-          stock_code: stockCode,
-          fiscal_year: fiscalYear,
-          fiscal_quarter: fiscalQuarter,
-          announcement_date: announcementDate,
-          edinet_doc_id: doc.id, // TDnetのIDを保存
-        });
-
-        existingKeys.add(key);
-        imported++;
-
-        console.log(
-          `Imported: ${stockCode} ${fiscalYear}Q${fiscalQuarter} - ${doc.title}`
-        );
-
-        // LLMで分析（PDF取得してサマリー生成）
-        const result = await analyzeEarningsDocument(
-          env,
-          earnings.id,
-          stockCode,
-          doc.document_url
-        );
-        if (result) {
-          console.log(
-            `Analyzed: ${stockCode} ${fiscalYear}Q${fiscalQuarter} - ${result.customAnalysisCount} custom analyses`
-          );
-        }
-      } catch (error) {
-        console.error(`Failed to create earnings for ${doc.id}:`, error);
-      }
+    if (!fiscalYear) {
+      console.log(`Skipping (cannot parse year): ${doc.title}`);
+      skipped++;
+      continue;
     }
-  } catch (error) {
-    console.error(`Failed to fetch TDnet data for ${stockCode}:`, error);
+
+    try {
+      // PDF を取得して R2 に保存（URL・ハッシュで重複チェック）
+      const storedPdf = await fetchAndStorePdf(
+        env.PDF_BUCKET,
+        doc.pdfUrl,
+        stockCode,
+        existingHashes,
+        (url) => checkUrlExists(env.DB, url)
+      );
+
+      if (!storedPdf) {
+        skipped++;
+        continue;
+      }
+
+      const earnings = await createEarnings(env.DB, {
+        stock_code: stockCode,
+        fiscal_year: fiscalYear,
+        fiscal_quarter: fiscalQuarter,
+        announcement_date: doc.pubdate,
+        content_hash: storedPdf.contentHash,
+        r2_key: storedPdf.r2Key,
+        document_url: doc.pdfUrl,
+        document_title: doc.title,
+      });
+
+      existingHashes.add(storedPdf.contentHash);
+      imported++;
+
+      console.log(
+        `Imported [${docType}] from ${doc.source}: ${stockCode} ${fiscalYear}Q${fiscalQuarter} - ${doc.title}`
+      );
+
+      // LLM で分析
+      const result = await analyzeEarningsDocument(
+        env,
+        earnings.id,
+        storedPdf.buffer
+      );
+      if (result) {
+        console.log(
+          `Analyzed: ${stockCode} ${fiscalYear}Q${fiscalQuarter} - ${result.customAnalysisCount} custom analyses`
+        );
+      }
+    } catch (error) {
+      console.error(`Failed to import from ${doc.source}:`, error);
+    }
   }
 
   console.log(

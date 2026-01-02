@@ -2,11 +2,13 @@
 // PDFをClaudeで分析し、サマリーとカスタム分析を生成
 
 import { ClaudeService } from './claude';
+import { getPdfFromR2 } from './pdfStorage';
 import {
   updateEarningsAnalysis,
   getWatchlistByStockCode,
   createUserEarningsAnalysis,
   getUserEarningsAnalysis,
+  getEarningsById,
 } from '../db/queries';
 import type { Env, EarningsSummary } from '../types';
 
@@ -15,23 +17,13 @@ export interface AnalyzeResult {
   customAnalysisCount: number;
 }
 
+// PDF バッファを直接受け取って分析
 export async function analyzeEarningsDocument(
   env: Env,
   earningsId: string,
-  stockCode: string,
-  documentUrl: string
+  pdfBuffer: ArrayBuffer
 ): Promise<AnalyzeResult | null> {
   const claude = new ClaudeService(env.ANTHROPIC_API_KEY);
-
-  // PDFを取得
-  console.log(`Fetching PDF from ${documentUrl}...`);
-  const pdfResponse = await fetch(documentUrl);
-  if (!pdfResponse.ok) {
-    console.error(`Failed to fetch PDF: ${pdfResponse.status}`);
-    return null;
-  }
-  const pdfBuffer = await pdfResponse.arrayBuffer();
-  console.log(`PDF fetched: ${pdfBuffer.byteLength} bytes`);
 
   // 基本サマリーを生成
   console.log('Analyzing PDF with Claude...');
@@ -51,8 +43,15 @@ export async function analyzeEarningsDocument(
   });
   console.log('Summary saved to DB');
 
+  // earnings から stock_code を取得
+  const earnings = await getEarningsById(env.DB, earningsId);
+  if (!earnings) {
+    console.error('Earnings not found:', earningsId);
+    return { summary, customAnalysisCount: 0 };
+  }
+
   // カスタムプロンプトを持つユーザーの分析を生成
-  const watchlistItems = await getWatchlistByStockCode(env.DB, stockCode);
+  const watchlistItems = await getWatchlistByStockCode(env.DB, earnings.stock_code);
   let customAnalysisCount = 0;
 
   for (const item of watchlistItems) {
@@ -86,4 +85,24 @@ export async function analyzeEarningsDocument(
   console.log(`Analysis complete: ${customAnalysisCount} custom analyses generated`);
 
   return { summary, customAnalysisCount };
+}
+
+// R2 から PDF を取得して分析（再分析用）
+export async function reanalyzeFromR2(
+  env: Env,
+  earningsId: string
+): Promise<AnalyzeResult | null> {
+  const earnings = await getEarningsById(env.DB, earningsId);
+  if (!earnings || !earnings.r2_key) {
+    console.error('Earnings or R2 key not found:', earningsId);
+    return null;
+  }
+
+  const pdfBuffer = await getPdfFromR2(env.PDF_BUCKET, earnings.r2_key);
+  if (!pdfBuffer) {
+    console.error('PDF not found in R2:', earnings.r2_key);
+    return null;
+  }
+
+  return analyzeEarningsDocument(env, earningsId, pdfBuffer);
 }
