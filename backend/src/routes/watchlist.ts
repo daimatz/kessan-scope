@@ -5,6 +5,7 @@ import {
   addToWatchlist,
   removeFromWatchlist,
   updateWatchlistItem,
+  getUserById,
 } from '../db/queries';
 import { enqueueHistoricalImport } from '../services/historicalImport';
 
@@ -30,6 +31,12 @@ watchlist.post('/', async (c) => {
     return c.json({ error: '証券コードは4〜5桁の数字です' }, 400);
   }
 
+  // ユーザー情報を取得
+  const user = await getUserById(c.env.DB, userId);
+  if (!user) {
+    return c.json({ error: 'ユーザーが見つかりません' }, 401);
+  }
+
   try {
     const item = await addToWatchlist(c.env.DB, {
       user_id: userId,
@@ -40,12 +47,22 @@ watchlist.post('/', async (c) => {
 
     // Queueに過去決算インポートジョブを追加
     c.executionCtx.waitUntil(
-      enqueueHistoricalImport(c.env.IMPORT_QUEUE, body.stock_code).catch((error) => {
+      enqueueHistoricalImport(
+        c.env.IMPORT_QUEUE,
+        body.stock_code,
+        body.stock_name || null,
+        userId,
+        user.email
+      ).catch((error) => {
         console.error(`Failed to enqueue historical import for ${body.stock_code}:`, error);
       })
     );
 
-    return c.json({ item }, 201);
+    return c.json({
+      item,
+      importStarted: true,
+      message: '過去の決算資料をインポート中です。完了したらメールでお知らせします。',
+    }, 201);
   } catch (error) {
     // UNIQUE constraint violation
     if (error instanceof Error && error.message.includes('UNIQUE')) {

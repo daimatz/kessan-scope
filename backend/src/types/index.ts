@@ -17,6 +17,9 @@ export interface Env {
 export interface ImportQueueMessage {
   type: 'import_historical_earnings';
   stockCode: string;
+  stockName: string | null;
+  userId: string;
+  userEmail: string;
 }
 
 // Database Models

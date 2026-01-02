@@ -58,7 +58,7 @@ export const authAPI = {
 export const watchlistAPI = {
   getAll: () => fetchAPI<{ items: WatchlistItem[] }>('/api/watchlist'),
   add: (data: { stock_code: string; stock_name?: string; custom_prompt?: string }) =>
-    fetchAPI<{ item: WatchlistItem }>('/api/watchlist', {
+    fetchAPI<{ item: WatchlistItem; importStarted?: boolean; message?: string }>('/api/watchlist', {
       method: 'POST',
       body: JSON.stringify(data),
     }),

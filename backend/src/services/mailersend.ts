@@ -193,4 +193,83 @@ ${options.verificationUrl}
       text,
     });
   }
+
+  // インポート完了通知メールを送信
+  async sendImportCompleteEmail(options: {
+    to: EmailRecipient;
+    stockCode: string;
+    stockName: string | null;
+    imported: number;
+    skipped: number;
+    dashboardUrl: string;
+  }): Promise<void> {
+    const displayName = options.stockName
+      ? `${options.stockName} (${options.stockCode})`
+      : options.stockCode;
+
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { background: #059669; color: white; padding: 20px; border-radius: 8px 8px 0 0; }
+    .content { background: #f9fafb; padding: 20px; border: 1px solid #e5e7eb; }
+    .stats { display: flex; gap: 20px; margin: 20px 0; }
+    .stat { background: white; padding: 15px; border-radius: 8px; border: 1px solid #e5e7eb; flex: 1; text-align: center; }
+    .stat-value { font-size: 24px; font-weight: bold; color: #1e40af; }
+    .stat-label { font-size: 12px; color: #6b7280; }
+    .button { display: inline-block; background: #1e40af; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin-top: 20px; }
+    .footer { text-align: center; padding: 20px; color: #6b7280; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1 style="margin: 0;">✅ インポート完了</h1>
+      <p style="margin: 10px 0 0;">${displayName}</p>
+    </div>
+    <div class="content">
+      <p>過去の決算資料・IR資料のインポートが完了しました。</p>
+      <div class="stats">
+        <div class="stat">
+          <div class="stat-value">${options.imported}</div>
+          <div class="stat-label">インポート済み</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value">${options.skipped}</div>
+          <div class="stat-label">スキップ</div>
+        </div>
+      </div>
+      <p>インポートされた資料はAIによる分析が完了しています。ダッシュボードで確認できます。</p>
+      <a href="${options.dashboardUrl}" class="button">ダッシュボードを開く →</a>
+    </div>
+    <div class="footer">
+      <p>Stock Watcher - 株式ウォッチャー</p>
+    </div>
+  </div>
+</body>
+</html>
+`;
+
+    const text = `
+インポート完了: ${displayName}
+
+過去の決算資料・IR資料のインポートが完了しました。
+
+- インポート済み: ${options.imported} 件
+- スキップ: ${options.skipped} 件
+
+ダッシュボード: ${options.dashboardUrl}
+`;
+
+    await this.sendEmail({
+      to: [options.to],
+      subject: `[Stock Watcher] ${displayName} のインポートが完了しました`,
+      html,
+      text,
+    });
+  }
 }

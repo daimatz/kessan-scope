@@ -12,6 +12,7 @@ export default function Watchlist() {
   const [customPrompt, setCustomPrompt] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editPrompt, setEditPrompt] = useState('');
+  const [importMessage, setImportMessage] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Debounced search
@@ -56,12 +57,18 @@ export default function Watchlist() {
 
   const addMutation = useMutation({
     mutationFn: watchlistAPI.add,
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['watchlist'] });
       setSearchQuery('');
       setSelectedStock(null);
       setCustomPrompt('');
       setSearchResults([]);
+      // インポート開始メッセージを表示
+      if (data.message) {
+        setImportMessage(data.message);
+        // 10秒後に自動で消す
+        setTimeout(() => setImportMessage(null), 10000);
+      }
     },
   });
 
@@ -174,6 +181,13 @@ export default function Watchlist() {
             <div className="error">{(addMutation.error as Error).message}</div>
           )}
         </form>
+        {importMessage && (
+          <div className="import-notice">
+            <span className="import-icon">📥</span>
+            <span>{importMessage}</span>
+            <button onClick={() => setImportMessage(null)} className="close-btn">×</button>
+          </div>
+        )}
       </section>
 
       <section className="section">

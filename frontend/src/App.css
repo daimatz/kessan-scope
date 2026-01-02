@@ -1022,3 +1022,34 @@ input:focus, textarea:focus, select:focus {
   text-align: center;
   color: var(--gray-500);
 }
+
+/* Import Notice */
+.import-notice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  background: linear-gradient(135deg, #eff6ff, #dbeafe);
+  border: 1px solid #93c5fd;
+  border-radius: 8px;
+  margin-top: 16px;
+  color: #1e40af;
+  font-size: 14px;
+}
+
+.import-icon {
+  font-size: 20px;
+}
+
+.import-notice .close-btn {
+  margin-left: auto;
+  background: transparent;
+  color: #1e40af;
+  padding: 4px 8px;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.import-notice .close-btn:hover {
+  background: rgba(30, 64, 175, 0.1);
+}
