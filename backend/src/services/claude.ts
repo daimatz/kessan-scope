@@ -10,11 +10,25 @@ export class ClaudeService {
     this.model = model;
   }
 
-  // PDFから決算内容を解析（事業家目線で戦略分析）
+  // PDFから決算内容を解析（事業家目線で戦略分析）- 単一PDF版（後方互換）
   async analyzeEarningsPdf(pdfBuffer: ArrayBuffer): Promise<EarningsSummary> {
-    const base64Pdf = this.arrayBufferToBase64(pdfBuffer);
+    return this.analyzeEarningsPdfs([{ buffer: pdfBuffer, type: 'earnings_summary' }]);
+  }
 
-    const systemPrompt = `あなたは事業戦略コンサルタントです。決算短信を事業家目線で分析してください。
+  // 複数PDFから決算内容を解析（事業家目線で戦略分析）
+  async analyzeEarningsPdfs(
+    documents: Array<{ buffer: ArrayBuffer; type: 'earnings_summary' | 'earnings_presentation' | 'growth_potential' }>
+  ): Promise<EarningsSummary> {
+    const documentLabels: Record<string, string> = {
+      'earnings_summary': '決算短信',
+      'earnings_presentation': '決算説明資料',
+      'growth_potential': '成長可能性資料',
+    };
+
+    const documentDescriptions = documents.map(d => documentLabels[d.type]).join('と');
+
+    const systemPrompt = `あなたは事業戦略コンサルタントです。${documentDescriptions}を事業家目線で分析してください。
+${documents.length > 1 ? '複数の資料が添付されています。すべての資料を総合的に分析してください。' : ''}
 
 【分析の視点】
 - 単なる数字の良し悪しではなく、経営陣の意思決定の背景を読み解く
@@ -22,6 +36,7 @@ export class ClaudeService {
 - セグメント別の戦略的重点や撤退/拡大の兆候を見抜く
 - 競合環境の変化に対する経営の対応姿勢を分析する
 - 中長期的な事業構造の転換を示唆する動きを捉える
+${documents.length > 1 ? '- 決算短信の数値と説明資料の経営方針を組み合わせて深い分析を行う' : ''}
 
 【出力JSON形式】
 {
@@ -42,26 +57,35 @@ export class ClaudeService {
 
 重要: JSON形式のみを出力してください。表面的な数字の増減ではなく、その背景にある経営判断を読み解いてください。`;
 
+    // 各PDFをドキュメントブロックとして構築
+    const contentBlocks: Anthropic.ContentBlockParam[] = documents.map((doc, index) => ({
+      type: 'document' as const,
+      source: {
+        type: 'base64' as const,
+        media_type: 'application/pdf' as const,
+        data: this.arrayBufferToBase64(doc.buffer),
+      },
+      // Claude API doesn't support title in document blocks directly,
+      // but we can reference them in the prompt
+    }));
+
+    // プロンプトにドキュメントの説明を追加
+    const docsDescription = documents.length > 1
+      ? `\n（添付資料: ${documents.map((d, i) => `${i + 1}. ${documentLabels[d.type]}`).join(', ')}）`
+      : '';
+
+    contentBlocks.push({
+      type: 'text',
+      text: systemPrompt + docsDescription,
+    });
+
     const response = await this.client.messages.create({
       model: this.model,
       max_tokens: 4096,
       messages: [
         {
           role: 'user',
-          content: [
-            {
-              type: 'document',
-              source: {
-                type: 'base64',
-                media_type: 'application/pdf',
-                data: base64Pdf,
-              },
-            },
-            {
-              type: 'text',
-              text: systemPrompt,
-            },
-          ],
+          content: contentBlocks,
         },
       ],
     });
@@ -81,14 +105,32 @@ export class ClaudeService {
     return JSON.parse(jsonText) as EarningsSummary;
   }
 
-  // カスタムプロンプトで追加分析（構造化JSON出力）
+  // カスタムプロンプトで追加分析（構造化JSON出力）- 単一PDF版（後方互換）
   async analyzeWithCustomPrompt(
     pdfBuffer: ArrayBuffer,
     customPrompt: string
   ): Promise<CustomAnalysisSummary> {
-    const base64Pdf = this.arrayBufferToBase64(pdfBuffer);
+    return this.analyzeWithCustomPromptMultiplePdfs(
+      [{ buffer: pdfBuffer, type: 'earnings_summary' }],
+      customPrompt
+    );
+  }
 
-    const systemPrompt = `あなたは事業戦略コンサルタントです。ユーザーが指定した観点でこの決算短信を深掘り分析してください。
+  // カスタムプロンプトで追加分析 - 複数PDF版
+  async analyzeWithCustomPromptMultiplePdfs(
+    documents: Array<{ buffer: ArrayBuffer; type: 'earnings_summary' | 'earnings_presentation' | 'growth_potential' }>,
+    customPrompt: string
+  ): Promise<CustomAnalysisSummary> {
+    const documentLabels: Record<string, string> = {
+      'earnings_summary': '決算短信',
+      'earnings_presentation': '決算説明資料',
+      'growth_potential': '成長可能性資料',
+    };
+
+    const documentDescriptions = documents.map(d => documentLabels[d.type]).join('と');
+
+    const systemPrompt = `あなたは事業戦略コンサルタントです。ユーザーが指定した観点で${documentDescriptions}を深掘り分析してください。
+${documents.length > 1 ? '複数の資料が添付されています。すべての資料を総合的に分析してください。' : ''}
 
 【ユーザー指定の分析観点】
 ${customPrompt}
@@ -98,6 +140,7 @@ ${customPrompt}
 - 事業戦略の変化や競争環境への対応を具体的に指摘する
 - 将来の事業展開への示唆を含める
 - ユーザー指定の観点を中心に分析すること
+${documents.length > 1 ? '- 複数資料の情報を組み合わせて包括的な分析を行う' : ''}
 
 【出力JSON形式】
 {
@@ -113,26 +156,33 @@ ${customPrompt}
 
 重要: JSON形式のみを出力してください。`;
 
+    // 各PDFをドキュメントブロックとして構築
+    const contentBlocks: Anthropic.ContentBlockParam[] = documents.map((doc) => ({
+      type: 'document' as const,
+      source: {
+        type: 'base64' as const,
+        media_type: 'application/pdf' as const,
+        data: this.arrayBufferToBase64(doc.buffer),
+      },
+    }));
+
+    // プロンプトにドキュメントの説明を追加
+    const docsDescription = documents.length > 1
+      ? `\n（添付資料: ${documents.map((d, i) => `${i + 1}. ${documentLabels[d.type]}`).join(', ')}）`
+      : '';
+
+    contentBlocks.push({
+      type: 'text',
+      text: systemPrompt + docsDescription,
+    });
+
     const response = await this.client.messages.create({
       model: this.model,
       max_tokens: 4096,
       messages: [
         {
           role: 'user',
-          content: [
-            {
-              type: 'document',
-              source: {
-                type: 'base64',
-                media_type: 'application/pdf',
-                data: base64Pdf,
-              },
-            },
-            {
-              type: 'text',
-              text: systemPrompt,
-            },
-          ],
+          content: contentBlocks,
         },
       ],
     });
@@ -192,15 +242,22 @@ ${customPrompt}
     return sections.join('\n\n');
   }
 
-  // チャット用のシステムプロンプトとメッセージを構築
-  private buildChatWithPdfParams(
-    pdfBuffer: ArrayBuffer,
-    currentEarnings: { fiscal_year: string; fiscal_quarter: number; stock_code: string },
+  // チャット用のシステムプロンプトとメッセージを構築 - 複数PDF対応
+  private buildChatWithPdfsParams(
+    documents: Array<{ buffer: ArrayBuffer; type: 'earnings_summary' | 'earnings_presentation' | 'growth_potential' }>,
+    currentEarnings: { fiscal_year: string; fiscal_quarter: number | null; stock_code: string },
     pastEarningsContext: string,
     chatHistory: Array<{ role: 'user' | 'assistant'; content: string }>,
     userMessage: string
   ): { systemPrompt: string; messages: Anthropic.MessageParam[] } {
-    const base64Pdf = this.arrayBufferToBase64(pdfBuffer);
+    const documentLabels: Record<string, string> = {
+      'earnings_summary': '決算短信',
+      'earnings_presentation': '決算説明資料',
+      'growth_potential': '成長可能性資料',
+    };
+
+    const documentDescriptions = documents.map(d => documentLabels[d.type]).join('と');
+    const quarterStr = currentEarnings.fiscal_quarter ? `Q${currentEarnings.fiscal_quarter}` : '';
 
     const systemPrompt = `あなたは事業戦略コンサルタントです。決算資料について、事業家目線で質問に答えてください。
 
@@ -212,30 +269,34 @@ ${customPrompt}
 - セグメント別の戦略的意思決定を読み解く
 - 競争環境の変化と経営の対応を分析する
 - 回答はMarkdown形式で構造化して読みやすくする
+${documents.length > 1 ? '- 複数の資料（決算短信と説明資料）を横断的に参照して回答する' : ''}
 
 【現在の決算】
-${currentEarnings.stock_code} - ${currentEarnings.fiscal_year}年 Q${currentEarnings.fiscal_quarter}
-（添付PDFを参照してください）
+${currentEarnings.stock_code} - ${currentEarnings.fiscal_year}年${quarterStr}
+添付資料: ${documentDescriptions}
 
 ${pastEarningsContext ? `【過去の決算履歴（経緯把握用）】\n${pastEarningsContext}` : ''}`;
 
     // 最初のメッセージにPDFを含める
-    const firstUserContent: Anthropic.ContentBlockParam[] = [
-      {
-        type: 'document',
-        source: {
-          type: 'base64',
-          media_type: 'application/pdf',
-          data: base64Pdf,
-        },
+    const firstUserContent: Anthropic.ContentBlockParam[] = documents.map((doc) => ({
+      type: 'document' as const,
+      source: {
+        type: 'base64' as const,
+        media_type: 'application/pdf' as const,
+        data: this.arrayBufferToBase64(doc.buffer),
       },
-      {
-        type: 'text',
-        text: chatHistory.length === 0
-          ? userMessage
-          : '（決算資料PDFを添付しました。以降の質問に回答してください。）',
-      },
-    ];
+    }));
+
+    const docsDescription = documents.length > 1
+      ? `（添付資料: ${documents.map((d, i) => `${i + 1}. ${documentLabels[d.type]}`).join(', ')}）`
+      : '';
+
+    firstUserContent.push({
+      type: 'text',
+      text: chatHistory.length === 0
+        ? userMessage + (docsDescription ? `\n${docsDescription}` : '')
+        : `${docsDescription}\n以降の質問に回答してください。`,
+    });
 
     // メッセージ履歴を構築
     const messages: Anthropic.MessageParam[] = [
@@ -257,6 +318,23 @@ ${pastEarningsContext ? `【過去の決算履歴（経緯把握用）】\n${pas
     }
 
     return { systemPrompt, messages };
+  }
+
+  // チャット用のシステムプロンプトとメッセージを構築（単一PDF版・後方互換）
+  private buildChatWithPdfParams(
+    pdfBuffer: ArrayBuffer,
+    currentEarnings: { fiscal_year: string; fiscal_quarter: number; stock_code: string },
+    pastEarningsContext: string,
+    chatHistory: Array<{ role: 'user' | 'assistant'; content: string }>,
+    userMessage: string
+  ): { systemPrompt: string; messages: Anthropic.MessageParam[] } {
+    return this.buildChatWithPdfsParams(
+      [{ buffer: pdfBuffer, type: 'earnings_summary' }],
+      currentEarnings,
+      pastEarningsContext,
+      chatHistory,
+      userMessage
+    );
   }
 
   // 決算についてのチャット（PDFベース + 過去の経緯）- 非ストリーミング
@@ -286,6 +364,33 @@ ${pastEarningsContext ? `【過去の決算履歴（経緯把握用）】\n${pas
     return textBlock.text;
   }
 
+  // 決算についてのチャット - 複数PDF対応（非ストリーミング）
+  async chatWithPdfs(
+    documents: Array<{ buffer: ArrayBuffer; type: 'earnings_summary' | 'earnings_presentation' | 'growth_potential' }>,
+    currentEarnings: { fiscal_year: string; fiscal_quarter: number | null; stock_code: string },
+    pastEarningsContext: string,
+    chatHistory: Array<{ role: 'user' | 'assistant'; content: string }>,
+    userMessage: string
+  ): Promise<string> {
+    const { systemPrompt, messages } = this.buildChatWithPdfsParams(
+      documents, currentEarnings, pastEarningsContext, chatHistory, userMessage
+    );
+
+    const response = await this.client.messages.create({
+      model: this.model,
+      max_tokens: 2048,
+      system: systemPrompt,
+      messages,
+    });
+
+    const textBlock = response.content.find((block) => block.type === 'text');
+    if (!textBlock || textBlock.type !== 'text') {
+      throw new Error('No text response from Claude');
+    }
+
+    return textBlock.text;
+  }
+
   // 決算についてのチャット（PDFベース + 過去の経緯）- ストリーミング
   async *chatWithPdfStream(
     pdfBuffer: ArrayBuffer,
@@ -296,6 +401,37 @@ ${pastEarningsContext ? `【過去の決算履歴（経緯把握用）】\n${pas
   ): AsyncGenerator<string, string, unknown> {
     const { systemPrompt, messages } = this.buildChatWithPdfParams(
       pdfBuffer, currentEarnings, pastEarningsContext, chatHistory, userMessage
+    );
+
+    const stream = this.client.messages.stream({
+      model: this.model,
+      max_tokens: 2048,
+      system: systemPrompt,
+      messages,
+    });
+
+    let fullContent = '';
+    for await (const event of stream) {
+      if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+        const text = event.delta.text;
+        fullContent += text;
+        yield text;
+      }
+    }
+
+    return fullContent;
+  }
+
+  // 決算についてのチャット - 複数PDF対応（ストリーミング）
+  async *chatWithPdfsStream(
+    documents: Array<{ buffer: ArrayBuffer; type: 'earnings_summary' | 'earnings_presentation' | 'growth_potential' }>,
+    currentEarnings: { fiscal_year: string; fiscal_quarter: number | null; stock_code: string },
+    pastEarningsContext: string,
+    chatHistory: Array<{ role: 'user' | 'assistant'; content: string }>,
+    userMessage: string
+  ): AsyncGenerator<string, string, unknown> {
+    const { systemPrompt, messages } = this.buildChatWithPdfsParams(
+      documents, currentEarnings, pastEarningsContext, chatHistory, userMessage
     );
 
     const stream = this.client.messages.stream({

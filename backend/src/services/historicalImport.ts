@@ -4,11 +4,17 @@ import {
   ClassifiedDocument,
   toOldDocumentType,
 } from './documentSources';
-import { createEarnings, getExistingContentHashes, checkUrlExists } from '../db/queries';
-import { analyzeEarningsDocument } from './earningsAnalyzer';
+import {
+  createEarningsWithRelease,
+  getExistingContentHashes,
+  checkUrlExists,
+  getOrCreateEarningsRelease,
+  getDocumentCountForRelease,
+} from '../db/queries';
+import { analyzeEarningsRelease } from './earningsAnalyzer';
 import { fetchAndStorePdf } from './pdfStorage';
 import { MailerSendClient } from './mailersend';
-import type { Env, ImportQueueMessage } from '../types';
+import type { Env, ImportQueueMessage, ReleaseType, DocumentType } from '../types';
 
 const PARALLEL_LIMIT = 3;
 
@@ -32,20 +38,44 @@ export async function enqueueHistoricalImport(
   console.log(`Enqueued historical import for ${stockCode}`);
 }
 
+// DocumentType に変換
+function classificationToDocumentType(classType: string): DocumentType | null {
+  switch (classType) {
+    case 'earnings_summary':
+      return 'earnings_summary';
+    case 'earnings_presentation':
+      return 'earnings_presentation';
+    case 'growth_potential':
+      return 'growth_potential';
+    default:
+      return null;
+  }
+}
+
+// ReleaseType を決定
+function determineReleaseType(docType: DocumentType): ReleaseType {
+  if (docType === 'growth_potential') {
+    return 'growth_potential';
+  }
+  return 'quarterly_earnings';
+}
+
 // 1ドキュメントを処理（LLM分類済み）
+// 戻り値: { imported, hash, releaseId } - releaseId は後で分析用
 async function processDocument(
   env: Env,
   stockCode: string,
   doc: ClassifiedDocument,
   existingHashes: Set<string>
-): Promise<{ imported: boolean; hash?: string }> {
+): Promise<{ imported: boolean; hash?: string; releaseId?: string; isNewRelease?: boolean }> {
   const { classification } = doc;
   const fiscalYear = classification.fiscal_year;
   const fiscalQuarter = classification.fiscal_quarter ?? 0; // null は 0 に変換
   const docType = toOldDocumentType(classification.document_type);
+  const documentType = classificationToDocumentType(classification.document_type);
 
-  if (!fiscalYear) {
-    console.log(`Skipping (LLM could not parse year): ${doc.title}`);
+  if (!fiscalYear || !documentType) {
+    console.log(`Skipping (LLM could not parse or unsupported type): ${doc.title}`);
     return { imported: false };
   }
 
@@ -63,7 +93,21 @@ async function processDocument(
       return { imported: false };
     }
 
-    const earnings = await createEarnings(env.DB, {
+    // EarningsRelease を取得または作成
+    const releaseType = determineReleaseType(documentType);
+    const release = await getOrCreateEarningsRelease(env.DB, {
+      release_type: releaseType,
+      stock_code: stockCode,
+      fiscal_year: fiscalYear,
+      fiscal_quarter: releaseType === 'growth_potential' ? null : fiscalQuarter,
+    });
+
+    // リリースに既にドキュメントがあるか確認（再分析判定用）
+    const existingDocCount = await getDocumentCountForRelease(env.DB, release.id);
+    const isNewRelease = existingDocCount === 0;
+
+    // Earnings レコードを作成（release_id と document_type 付き）
+    await createEarningsWithRelease(env.DB, {
       stock_code: stockCode,
       fiscal_year: fiscalYear,
       fiscal_quarter: fiscalQuarter,
@@ -72,25 +116,15 @@ async function processDocument(
       r2_key: storedPdf.r2Key,
       document_url: doc.pdfUrl,
       document_title: doc.title,
+      release_id: release.id,
+      document_type: documentType,
     });
 
     console.log(
-      `Imported [${docType}] from ${doc.source}: ${stockCode} ${fiscalYear}Q${fiscalQuarter} - ${doc.title} (confidence: ${classification.confidence.toFixed(2)})`
+      `Imported [${docType}] from ${doc.source}: ${stockCode} ${fiscalYear}Q${fiscalQuarter} - ${doc.title} (confidence: ${classification.confidence.toFixed(2)}, release: ${release.id})`
     );
 
-    // LLM で分析
-    const result = await analyzeEarningsDocument(
-      env,
-      earnings.id,
-      storedPdf.buffer
-    );
-    if (result) {
-      console.log(
-        `Analyzed: ${stockCode} ${fiscalYear}Q${fiscalQuarter} - ${result.customAnalysisCount} custom analyses`
-      );
-    }
-
-    return { imported: true, hash: storedPdf.contentHash };
+    return { imported: true, hash: storedPdf.contentHash, releaseId: release.id, isNewRelease };
   } catch (error) {
     console.error(`Failed to import from ${doc.source}:`, error);
     return { imported: false };
@@ -121,8 +155,9 @@ export async function processImportBatch(
 
   let imported = 0;
   let skipped = 0;
+  const releasesToAnalyze = new Map<string, boolean>(); // releaseId -> isNewRelease
 
-  // PARALLEL_LIMIT 件ずつ並列処理
+  // PARALLEL_LIMIT 件ずつ並列処理（インポートのみ）
   for (let i = 0; i < classifiedDocs.length; i += PARALLEL_LIMIT) {
     const batch = classifiedDocs.slice(i, i + PARALLEL_LIMIT);
 
@@ -135,6 +170,18 @@ export async function processImportBatch(
       if (result.imported && result.hash) {
         existingHashes.add(result.hash);
         imported++;
+
+        // 分析対象のリリースを記録
+        if (result.releaseId) {
+          // isNewRelease が false（既存リリースに追加）の場合は再分析が必要
+          const currentIsNew = releasesToAnalyze.get(result.releaseId);
+          if (currentIsNew === undefined) {
+            releasesToAnalyze.set(result.releaseId, result.isNewRelease ?? true);
+          } else if (currentIsNew && result.isNewRelease === false) {
+            // 新規だったが後から追加ドキュメントが来た場合
+            releasesToAnalyze.set(result.releaseId, false);
+          }
+        }
       } else {
         skipped++;
       }
@@ -144,6 +191,21 @@ export async function processImportBatch(
   console.log(
     `Import complete for ${stockCode}: ${imported} imported, ${skipped} skipped`
   );
+
+  // リリースごとに分析を実行
+  console.log(`Analyzing ${releasesToAnalyze.size} releases...`);
+  for (const [releaseId, isNewRelease] of releasesToAnalyze) {
+    try {
+      const result = await analyzeEarningsRelease(env, releaseId);
+      if (result) {
+        console.log(
+          `Analyzed release ${releaseId}: ${result.customAnalysisCount} custom analyses${isNewRelease ? '' : ' (re-analyzed)'}`
+        );
+      }
+    } catch (error) {
+      console.error(`Failed to analyze release ${releaseId}:`, error);
+    }
+  }
 
   // 完了通知メールを送信
   try {

@@ -3,10 +3,38 @@
 
 import { TdnetClient } from './tdnet';
 import { DocumentClassifier, toOldDocumentType } from './documentClassifier';
-import { createEarnings, getExistingContentHashes, checkUrlExists } from '../db/queries';
-import { analyzeEarningsDocument } from './earningsAnalyzer';
+import {
+  createEarningsWithRelease,
+  getExistingContentHashes,
+  checkUrlExists,
+  getOrCreateEarningsRelease,
+  getDocumentCountForRelease,
+} from '../db/queries';
+import { analyzeEarningsRelease } from './earningsAnalyzer';
 import { fetchAndStorePdf } from './pdfStorage';
-import type { Env } from '../types';
+import type { Env, ReleaseType, DocumentType } from '../types';
+
+// DocumentType に変換
+function classificationToDocumentType(classType: string): DocumentType | null {
+  switch (classType) {
+    case 'earnings_summary':
+      return 'earnings_summary';
+    case 'earnings_presentation':
+      return 'earnings_presentation';
+    case 'growth_potential':
+      return 'growth_potential';
+    default:
+      return null;
+  }
+}
+
+// ReleaseType を決定
+function determineReleaseType(docType: DocumentType): ReleaseType {
+  if (docType === 'growth_potential') {
+    return 'growth_potential';
+  }
+  return 'quarterly_earnings';
+}
 
 // 全ウォッチリストユーザーの銘柄をチェック
 export async function checkNewReleases(env: Env): Promise<{ checked: number; imported: number }> {
@@ -34,6 +62,8 @@ export async function checkNewReleases(env: Env): Promise<{ checked: number; imp
 
   // 銘柄ごとの既存ハッシュをキャッシュ
   const hashCache = new Map<string, Set<string>>();
+  // 分析対象のリリースを追跡
+  const releasesToAnalyze = new Map<string, boolean>(); // releaseId -> isNewRelease
 
   let imported = 0;
 
@@ -59,9 +89,10 @@ export async function checkNewReleases(env: Env): Promise<{ checked: number; imp
     const fiscalYear = classification.fiscal_year;
     const fiscalQuarter = classification.fiscal_quarter ?? 0;
     const docType = toOldDocumentType(classification.document_type);
+    const documentType = classificationToDocumentType(classification.document_type);
 
-    if (!fiscalYear) {
-      console.log(`Skipping (LLM could not parse): ${doc.title}`);
+    if (!fiscalYear || !documentType) {
+      console.log(`Skipping (LLM could not parse or unsupported type): ${doc.title}`);
       continue;
     }
 
@@ -90,7 +121,21 @@ export async function checkNewReleases(env: Env): Promise<{ checked: number; imp
 
       const announcementDate = doc.pubdate.split(' ')[0];
 
-      const earnings = await createEarnings(env.DB, {
+      // EarningsRelease を取得または作成
+      const releaseType = determineReleaseType(documentType);
+      const release = await getOrCreateEarningsRelease(env.DB, {
+        release_type: releaseType,
+        stock_code: stockCode,
+        fiscal_year: fiscalYear,
+        fiscal_quarter: releaseType === 'growth_potential' ? null : fiscalQuarter,
+      });
+
+      // リリースに既にドキュメントがあるか確認（再分析判定用）
+      const existingDocCount = await getDocumentCountForRelease(env.DB, release.id);
+      const isNewRelease = existingDocCount === 0;
+
+      // Earnings レコードを作成（release_id と document_type 付き）
+      await createEarningsWithRelease(env.DB, {
         stock_code: stockCode,
         fiscal_year: fiscalYear,
         fiscal_quarter: fiscalQuarter,
@@ -99,25 +144,38 @@ export async function checkNewReleases(env: Env): Promise<{ checked: number; imp
         r2_key: storedPdf.r2Key,
         document_url: doc.document_url,
         document_title: doc.title,
+        release_id: release.id,
+        document_type: documentType,
       });
 
       existingHashes.add(storedPdf.contentHash);
       imported++;
-      console.log(`Imported new [${docType}]: ${stockCode} ${fiscalYear}Q${fiscalQuarter} - ${doc.title} (confidence: ${classification.confidence.toFixed(2)})`);
+      console.log(`Imported new [${docType}]: ${stockCode} ${fiscalYear}Q${fiscalQuarter} - ${doc.title} (confidence: ${classification.confidence.toFixed(2)}, release: ${release.id})`);
 
-      // LLM で分析
-      const result = await analyzeEarningsDocument(
-        env,
-        earnings.id,
-        storedPdf.buffer
-      );
-      if (result) {
-        console.log(
-          `Analyzed: ${stockCode} ${fiscalYear}Q${fiscalQuarter} - ${result.customAnalysisCount} custom analyses`
-        );
+      // 分析対象のリリースを記録
+      const currentIsNew = releasesToAnalyze.get(release.id);
+      if (currentIsNew === undefined) {
+        releasesToAnalyze.set(release.id, isNewRelease);
+      } else if (currentIsNew && !isNewRelease) {
+        releasesToAnalyze.set(release.id, false);
       }
     } catch (error) {
       console.error(`Failed to import ${doc.id}:`, error);
+    }
+  }
+
+  // リリースごとに分析を実行
+  console.log(`Analyzing ${releasesToAnalyze.size} releases...`);
+  for (const [releaseId, isNewRelease] of releasesToAnalyze) {
+    try {
+      const result = await analyzeEarningsRelease(env, releaseId);
+      if (result) {
+        console.log(
+          `Analyzed release ${releaseId}: ${result.customAnalysisCount} custom analyses${isNewRelease ? '' : ' (re-analyzed)'}`
+        );
+      }
+    } catch (error) {
+      console.error(`Failed to analyze release ${releaseId}:`, error);
     }
   }
 

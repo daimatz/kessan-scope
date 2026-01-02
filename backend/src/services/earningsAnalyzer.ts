@@ -13,8 +13,16 @@ import {
   saveCustomAnalysisToHistory,
   updateUserEarningsAnalysis,
   findCachedAnalysis,
+  getDocumentsForRelease,
+  getEarningsReleaseById,
+  updateEarningsReleaseAnalysis,
+  getUserAnalysisByRelease,
+  createUserAnalysisForRelease,
+  updateUserAnalysisForRelease,
+  saveCustomAnalysisForRelease,
+  findCachedAnalysisForRelease,
 } from '../db/queries';
-import type { Env, Earnings, EarningsSummary, WatchlistItem, CustomAnalysisSummary } from '../types';
+import type { Env, Earnings, EarningsSummary, WatchlistItem, CustomAnalysisSummary, DocumentType } from '../types';
 
 export interface AnalyzeResult {
   summary: EarningsSummary;
@@ -91,6 +99,111 @@ export async function analyzeEarningsDocument(
   console.log(`Analysis complete: ${customAnalysisCount} custom analyses generated`);
 
   return { summary, customAnalysisCount };
+}
+
+// EarningsRelease に対して分析を実行（複数PDF対応）
+export async function analyzeEarningsRelease(
+  env: Env,
+  releaseId: string
+): Promise<AnalyzeResult | null> {
+  const release = await getEarningsReleaseById(env.DB, releaseId);
+  if (!release) {
+    console.error('Release not found:', releaseId);
+    return null;
+  }
+
+  // リリースに紐づくドキュメントを取得
+  const documents = await getDocumentsForRelease(env.DB, releaseId);
+  if (documents.length === 0) {
+    console.error('No documents found for release:', releaseId);
+    return null;
+  }
+
+  // 各ドキュメントのPDFを取得
+  const pdfDocuments: Array<{ buffer: ArrayBuffer; type: DocumentType }> = [];
+  for (const doc of documents) {
+    if (!doc.r2_key || !doc.document_type) continue;
+
+    const pdfBuffer = await getPdfFromR2(env.PDF_BUCKET, doc.r2_key);
+    if (pdfBuffer) {
+      pdfDocuments.push({
+        buffer: pdfBuffer,
+        type: doc.document_type,
+      });
+    }
+  }
+
+  if (pdfDocuments.length === 0) {
+    console.error('No PDFs available for release:', releaseId);
+    return null;
+  }
+
+  const claude = new ClaudeService(env.ANTHROPIC_API_KEY);
+
+  // 基本サマリーを生成（複数PDF対応）
+  console.log(`Analyzing ${pdfDocuments.length} PDFs for release ${releaseId}...`);
+  let summary: EarningsSummary;
+  try {
+    summary = await claude.analyzeEarningsPdfs(pdfDocuments);
+  } catch (error) {
+    console.error('Failed to analyze PDFs:', error);
+    return null;
+  }
+
+  // サマリーをEarningsReleaseに保存
+  await updateEarningsReleaseAnalysis(env.DB, releaseId, {
+    summary: JSON.stringify(summary),
+    highlights: JSON.stringify(summary.highlights),
+    lowlights: JSON.stringify(summary.lowlights),
+  });
+  console.log('Release summary saved to DB');
+
+  // カスタムプロンプトを持つユーザーの分析を生成
+  const watchlistItems = await getWatchlistByStockCode(env.DB, release.stock_code);
+  let customAnalysisCount = 0;
+
+  for (const item of watchlistItems) {
+    // 既に分析がある場合はスキップ
+    const existing = await getUserAnalysisByRelease(env.DB, item.user_id, releaseId);
+    if (existing) {
+      continue;
+    }
+
+    let customAnalysis: string | null = null;
+
+    // カスタムプロンプトがある場合は追加分析
+    if (item.custom_prompt) {
+      try {
+        console.log(`Generating custom analysis for user ${item.user_id}...`);
+        const analysisResult = await claude.analyzeWithCustomPromptMultiplePdfs(pdfDocuments, item.custom_prompt);
+        customAnalysis = JSON.stringify(analysisResult);
+        customAnalysisCount++;
+      } catch (error) {
+        console.error(`Failed to generate custom analysis for user ${item.user_id}:`, error);
+      }
+    }
+
+    // ユーザー分析レコードを作成（カスタム分析の有無に関わらず）
+    await createUserAnalysisForRelease(env.DB, {
+      user_id: item.user_id,
+      release_id: releaseId,
+      custom_analysis: customAnalysis,
+      custom_prompt_used: item.custom_prompt,
+    });
+  }
+
+  console.log(`Release analysis complete: ${customAnalysisCount} custom analyses generated`);
+
+  return { summary, customAnalysisCount };
+}
+
+// 新しいドキュメントが追加された時にリリースを再分析
+export async function reanalyzeReleaseWithNewDocument(
+  env: Env,
+  releaseId: string
+): Promise<AnalyzeResult | null> {
+  console.log(`Re-analyzing release ${releaseId} with new document...`);
+  return analyzeEarningsRelease(env, releaseId);
 }
 
 // R2 から PDF を取得して分析（再分析用）

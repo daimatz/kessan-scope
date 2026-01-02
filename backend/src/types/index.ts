@@ -55,8 +55,28 @@ export interface WatchlistItem {
   created_at: string;
 }
 
+// 決算発表（短信+プレゼンのセット、または中計など）
+export type ReleaseType = 'quarterly_earnings' | 'growth_potential';
+export type DocumentType = 'earnings_summary' | 'earnings_presentation' | 'growth_potential';
+
+export interface EarningsRelease {
+  id: string;
+  release_type: ReleaseType;
+  stock_code: string;
+  fiscal_year: string;
+  fiscal_quarter: number | null;  // NULL for growth_potential
+  summary: string | null;         // LLM分析結果（JSON）
+  highlights: string | null;      // JSON配列
+  lowlights: string | null;       // JSON配列
+  created_at: string;
+  updated_at: string;
+}
+
+// 個別ドキュメント（PDF）
 export interface Earnings {
   id: string;
+  release_id: string | null;      // EarningsRelease への参照
+  document_type: DocumentType | null;
   stock_code: string;
   fiscal_year: string;
   fiscal_quarter: number;
@@ -65,7 +85,7 @@ export interface Earnings {
   r2_key: string | null;         // R2 オブジェクトキー
   document_title: string | null; // ドキュメントタイトル
   raw_data: string | null;
-  summary: string | null;
+  summary: string | null;        // 旧: 個別分析結果（後方互換）
   highlights: string | null;
   lowlights: string | null;
   created_at: string;
@@ -74,7 +94,8 @@ export interface Earnings {
 export interface UserEarningsAnalysis {
   id: string;
   user_id: string;
-  earnings_id: string;
+  earnings_id: string;           // 旧: 後方互換
+  release_id: string | null;     // 新: EarningsRelease への参照
   custom_analysis: string | null;
   custom_prompt_used: string | null;
   notified_at: string | null;
@@ -84,7 +105,8 @@ export interface UserEarningsAnalysis {
 export interface ChatMessage {
   id: string;
   user_id: string;
-  earnings_id: string;
+  earnings_id: string;           // 旧: 後方互換
+  release_id: string | null;     // 新: EarningsRelease への参照
   role: 'user' | 'assistant';
   content: string;
   created_at: string;
@@ -93,7 +115,8 @@ export interface ChatMessage {
 export interface CustomAnalysisHistory {
   id: string;
   user_id: string;
-  earnings_id: string;
+  earnings_id: string;           // 旧: 後方互換
+  release_id: string | null;     // 新: EarningsRelease への参照
   custom_prompt: string;
   analysis: string;
   created_at: string;
