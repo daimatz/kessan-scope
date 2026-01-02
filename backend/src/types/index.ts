@@ -111,6 +111,14 @@ export interface EarningsSummary {
   };
 }
 
+// カスタムプロンプト分析の構造化結果
+export interface CustomAnalysisSummary {
+  overview: string;      // カスタム観点での概要
+  highlights: string[];  // カスタム観点でのハイライト
+  lowlights: string[];   // カスタム観点でのローライト
+  analysis: string;      // 詳細分析
+}
+
 export interface GoogleUserInfo {
   id: string;
   email: string;

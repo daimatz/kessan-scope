@@ -79,11 +79,10 @@ export const watchlistAPI = {
 export const earningsAPI = {
   getAll: () => fetchAPI<{ earnings: Earnings[] }>('/api/earnings'),
   getById: (id: string) =>
-    fetchAPI<{ earnings: EarningsDetail; userAnalysis: string | null; notifiedAt: string | null }>(
-      `/api/earnings/${id}`
-    ),
+    fetchAPI<EarningsDetailResponse>(`/api/earnings/${id}`),
   getByStock: (code: string) =>
-    fetchAPI<{ stock_code: string; earnings: EarningsHistory[] }>(`/api/earnings/stock/${code}`),
+    fetchAPI<StockDetailResponse>(`/api/earnings/stock/${code}`),
+  getPdfUrl: (id: string) => `${API_BASE}/api/earnings/${id}/pdf`,
 };
 
 // Chat API
@@ -156,9 +155,26 @@ export interface EarningsDetail {
   fiscal_year: string;
   fiscal_quarter: number;
   announcement_date: string;
+  document_title: string | null;
+  r2_key: string | null;
   summary: EarningsSummary | null;
   highlights: string[];
   lowlights: string[];
+}
+
+export interface AnalysisHistoryItem {
+  id: string;
+  custom_prompt: string;
+  analysis: string;
+  created_at: string;
+}
+
+export interface EarningsDetailResponse {
+  earnings: EarningsDetail;
+  userAnalysis: string | null;
+  userPromptUsed: string | null;
+  notifiedAt: string | null;
+  analysisHistory: AnalysisHistoryItem[];
 }
 
 export interface EarningsSummary {
@@ -173,12 +189,48 @@ export interface EarningsSummary {
   };
 }
 
+// カスタムプロンプト分析の構造化結果
+export interface CustomAnalysisSummary {
+  overview: string;      // カスタム観点での概要
+  highlights: string[];  // カスタム観点でのハイライト
+  lowlights: string[];   // カスタム観点でのローライト
+  analysis: string;      // 詳細分析
+}
+
+// JSON文字列からCustomAnalysisSummaryをパース
+export function parseCustomAnalysis(jsonString: string | null): CustomAnalysisSummary | null {
+  if (!jsonString) return null;
+  try {
+    return JSON.parse(jsonString) as CustomAnalysisSummary;
+  } catch {
+    // 古い形式（プレーンテキスト）の場合はanalysisフィールドのみ
+    return {
+      overview: '',
+      highlights: [],
+      lowlights: [],
+      analysis: jsonString,
+    };
+  }
+}
+
 export interface EarningsHistory {
   id: string;
   fiscal_year: string;
   fiscal_quarter: number;
   announcement_date: string;
+  document_title: string | null;
   has_summary: boolean;
+  has_pdf: boolean;
+  has_custom_analysis: boolean;
+  analysis_history_count: number;
+}
+
+export interface StockDetailResponse {
+  stock_code: string;
+  stock_name: string | null;
+  custom_prompt: string | null;
+  watchlist_id: string | null;
+  earnings: EarningsHistory[];
 }
 
 export interface ChatMessage {

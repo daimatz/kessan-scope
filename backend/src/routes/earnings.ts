@@ -4,6 +4,8 @@ import {
   getEarnings,
   getEarningsById,
   getUserEarningsAnalysis,
+  getCustomAnalysisHistory,
+  getWatchlist,
 } from '../db/queries';
 
 const earnings = new Hono<{ Bindings: Env; Variables: { userId: string } }>();
@@ -37,6 +39,9 @@ earnings.get('/:id', async (c) => {
 
   // ユーザー固有の分析を取得
   const userAnalysis = await getUserEarningsAnalysis(c.env.DB, userId, id);
+
+  // カスタム分析履歴を取得
+  const analysisHistory = await getCustomAnalysisHistory(c.env.DB, userId, id);
 
   // サマリーをパース
   let summary: EarningsSummary | null = null;
@@ -73,34 +78,89 @@ earnings.get('/:id', async (c) => {
       fiscal_year: earningsData.fiscal_year,
       fiscal_quarter: earningsData.fiscal_quarter,
       announcement_date: earningsData.announcement_date,
+      document_title: earningsData.document_title,
+      r2_key: earningsData.r2_key,
       summary,
       highlights,
       lowlights,
     },
     userAnalysis: userAnalysis?.custom_analysis || null,
+    userPromptUsed: userAnalysis?.custom_prompt_used || null,
     notifiedAt: userAnalysis?.notified_at || null,
+    analysisHistory: analysisHistory.map(h => ({
+      id: h.id,
+      custom_prompt: h.custom_prompt,
+      analysis: h.analysis,
+      created_at: h.created_at,
+    })),
+  });
+});
+
+// PDF取得（署名付きURL or 直接返す）
+earnings.get('/:id/pdf', async (c) => {
+  const id = c.req.param('id');
+
+  const earningsData = await getEarningsById(c.env.DB, id);
+  if (!earningsData || !earningsData.r2_key) {
+    return c.json({ error: 'PDFが見つかりません' }, 404);
+  }
+
+  // R2からPDFを取得
+  const object = await c.env.PDF_BUCKET.get(earningsData.r2_key);
+  if (!object) {
+    return c.json({ error: 'PDFが見つかりません' }, 404);
+  }
+
+  // PDFを直接返す
+  return new Response(object.body, {
+    headers: {
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `inline; filename="${earningsData.stock_code}_${earningsData.fiscal_year}Q${earningsData.fiscal_quarter}.pdf"`,
+    },
   });
 });
 
 // 銘柄別決算履歴
 earnings.get('/stock/:code', async (c) => {
+  const userId = c.get('userId');
   const code = c.req.param('code');
 
   if (!/^\d{4,5}$/.test(code)) {
     return c.json({ error: '無効な証券コードです' }, 400);
   }
 
+  // ウォッチリスト情報を取得
+  const watchlist = await getWatchlist(c.env.DB, userId);
+  const watchlistItem = watchlist.find(w => w.stock_code === code);
+
+  // 決算一覧を取得（ユーザーの分析情報含む）
   const earningsList = await getEarnings(c.env.DB, code);
+
+  // 各決算のユーザー分析情報を取得
+  const earningsWithAnalysis = await Promise.all(
+    earningsList.map(async (e) => {
+      const userAnalysis = await getUserEarningsAnalysis(c.env.DB, userId, e.id);
+      const historyCount = (await getCustomAnalysisHistory(c.env.DB, userId, e.id)).length;
+      return {
+        id: e.id,
+        fiscal_year: e.fiscal_year,
+        fiscal_quarter: e.fiscal_quarter,
+        announcement_date: e.announcement_date,
+        document_title: e.document_title,
+        has_summary: !!e.summary,
+        has_pdf: !!e.r2_key,
+        has_custom_analysis: !!userAnalysis?.custom_analysis,
+        analysis_history_count: historyCount,
+      };
+    })
+  );
 
   return c.json({
     stock_code: code,
-    earnings: earningsList.map(e => ({
-      id: e.id,
-      fiscal_year: e.fiscal_year,
-      fiscal_quarter: e.fiscal_quarter,
-      announcement_date: e.announcement_date,
-      has_summary: !!e.summary,
-    })),
+    stock_name: watchlistItem?.stock_name || null,
+    custom_prompt: watchlistItem?.custom_prompt || null,
+    watchlist_id: watchlistItem?.id || null,
+    earnings: earningsWithAnalysis,
   });
 });
 

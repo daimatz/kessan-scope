@@ -1,6 +1,19 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { earningsAPI } from '../api';
+import { earningsAPI, type Earnings } from '../api';
+
+// 銘柄ごとにグループ化
+function groupByStock(earnings: Earnings[]): Map<string, Earnings[]> {
+  const grouped = new Map<string, Earnings[]>();
+  for (const e of earnings) {
+    const key = e.stock_code;
+    if (!grouped.has(key)) {
+      grouped.set(key, []);
+    }
+    grouped.get(key)!.push(e);
+  }
+  return grouped;
+}
 
 export default function Dashboard() {
   const { data, isLoading, error } = useQuery({
@@ -27,43 +40,56 @@ export default function Dashboard() {
   }
 
   const earnings = data?.earnings || [];
+  const grouped = groupByStock(earnings);
 
   return (
     <div className="page">
       <h1>ダッシュボード</h1>
-      
-      <section className="section">
-        <h2>最新の決算</h2>
-        {earnings.length === 0 ? (
-          <div className="empty-state">
-            <p>決算データがありません</p>
-            <p>
-              <Link to="/watchlist">ウォッチリストに銘柄を追加</Link>
-              してください
-            </p>
-          </div>
-        ) : (
-          <div className="earnings-grid">
-            {earnings.map((e) => (
-              <Link key={e.id} to={`/earnings/${e.id}`} className="earnings-card">
-                <div className="earnings-header">
-                  <span className="stock-code">{e.stock_code}</span>
-                  <span className="stock-name">{e.stock_name || '名称未設定'}</span>
+
+      {earnings.length === 0 ? (
+        <div className="empty-state">
+          <p>決算データがありません</p>
+          <p>
+            <Link to="/watchlist">ウォッチリストに銘柄を追加</Link>
+            してください
+          </p>
+        </div>
+      ) : (
+        <div className="stock-groups">
+          {Array.from(grouped.entries()).map(([stockCode, stockEarnings]) => {
+            const latestEarnings = stockEarnings[0];
+            const stockName = latestEarnings.stock_name || '名称未設定';
+
+            return (
+              <section key={stockCode} className="stock-group">
+                <div className="stock-group-header">
+                  <Link to={`/stocks/${stockCode}`} className="stock-group-title">
+                    <span className="stock-code">{stockCode}</span>
+                    <span className="stock-name">{stockName}</span>
+                  </Link>
+                  <span className="stock-count">{stockEarnings.length}件</span>
                 </div>
-                <div className="earnings-period">
-                  {e.fiscal_year}年 Q{e.fiscal_quarter}
+                <div className="earnings-list">
+                  {stockEarnings.slice(0, 3).map((e) => (
+                    <Link key={e.id} to={`/earnings/${e.id}`} className="earnings-item">
+                      <span className="earnings-period">
+                        {e.fiscal_year}年 Q{e.fiscal_quarter}
+                      </span>
+                      <span className="earnings-date">{e.announcement_date}</span>
+                      {e.notified_at && <span className="earnings-notified">✅</span>}
+                    </Link>
+                  ))}
+                  {stockEarnings.length > 3 && (
+                    <Link to={`/stocks/${stockCode}`} className="more-link">
+                      他 {stockEarnings.length - 3} 件を見る →
+                    </Link>
+                  )}
                 </div>
-                <div className="earnings-date">
-                  発表日: {e.announcement_date}
-                </div>
-                {e.notified_at && (
-                  <div className="earnings-notified">✅ 通知済み</div>
-                )}
-              </Link>
-            ))}
-          </div>
-        )}
-      </section>
+              </section>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

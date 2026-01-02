@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import type { EarningsSummary } from '../types';
+import type { EarningsSummary, CustomAnalysisSummary } from '../types';
 
 export class ClaudeService {
   private client: Anthropic;
@@ -81,16 +81,41 @@ export class ClaudeService {
     return JSON.parse(jsonText) as EarningsSummary;
   }
 
-  // カスタムプロンプトで追加分析
+  // カスタムプロンプトで追加分析（構造化JSON出力）
   async analyzeWithCustomPrompt(
     pdfBuffer: ArrayBuffer,
     customPrompt: string
-  ): Promise<string> {
+  ): Promise<CustomAnalysisSummary> {
     const base64Pdf = this.arrayBufferToBase64(pdfBuffer);
+
+    const systemPrompt = `あなたは事業戦略コンサルタントです。ユーザーが指定した観点でこの決算短信を深掘り分析してください。
+
+【ユーザー指定の分析観点】
+${customPrompt}
+
+【分析のポイント】
+- 表面的な数字ではなく、経営判断の背景と意図を読み解く
+- 事業戦略の変化や競争環境への対応を具体的に指摘する
+- 将来の事業展開への示唆を含める
+- ユーザー指定の観点を中心に分析すること
+
+【出力JSON形式】
+{
+  "overview": "ユーザー指定の観点から見たこの決算の要点（200-300文字程度）",
+  "highlights": [
+    "指定観点から見た戦略的にポジティブな点（3-5項目）"
+  ],
+  "lowlights": [
+    "指定観点から見たリスクや課題（3-5項目）"
+  ],
+  "analysis": "指定観点に基づく詳細な分析（500-800文字程度、具体的な根拠を示す）"
+}
+
+重要: JSON形式のみを出力してください。`;
 
     const response = await this.client.messages.create({
       model: this.model,
-      max_tokens: 2048,
+      max_tokens: 4096,
       messages: [
         {
           role: 'user',
@@ -105,17 +130,7 @@ export class ClaudeService {
             },
             {
               type: 'text',
-              text: `あなたは事業戦略コンサルタントです。以下の観点でこの決算短信を深掘り分析してください。
-
-【分析観点】
-${customPrompt}
-
-【分析のポイント】
-- 表面的な数字ではなく、経営判断の背景と意図を読み解く
-- 事業戦略の変化や競争環境への対応を具体的に指摘する
-- 将来の事業展開への示唆を含める
-
-日本語で、具体的な根拠を示しながら分析してください。`,
+              text: systemPrompt,
             },
           ],
         },
@@ -127,7 +142,14 @@ ${customPrompt}
       throw new Error('No text response from Claude');
     }
 
-    return textBlock.text;
+    // JSON部分を抽出（```json ... ``` で囲まれている場合も対応）
+    let jsonText = textBlock.text.trim();
+    const jsonMatch = jsonText.match(/```json\s*([\s\S]*?)\s*```/);
+    if (jsonMatch) {
+      jsonText = jsonMatch[1];
+    }
+
+    return JSON.parse(jsonText) as CustomAnalysisSummary;
   }
 
   // 決算についてのチャット

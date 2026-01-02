@@ -14,7 +14,7 @@ import {
   updateUserEarningsAnalysis,
   findCachedAnalysis,
 } from '../db/queries';
-import type { Env, Earnings, EarningsSummary, WatchlistItem } from '../types';
+import type { Env, Earnings, EarningsSummary, WatchlistItem, CustomAnalysisSummary } from '../types';
 
 export interface AnalyzeResult {
   summary: EarningsSummary;
@@ -71,7 +71,8 @@ export async function analyzeEarningsDocument(
     if (item.custom_prompt) {
       try {
         console.log(`Generating custom analysis for user ${item.user_id}...`);
-        customAnalysis = await claude.analyzeWithCustomPrompt(pdfBuffer, item.custom_prompt);
+        const analysisResult = await claude.analyzeWithCustomPrompt(pdfBuffer, item.custom_prompt);
+        customAnalysis = JSON.stringify(analysisResult);
         customAnalysisCount++;
       } catch (error) {
         console.error(`Failed to generate custom analysis for user ${item.user_id}:`, error);
@@ -83,6 +84,7 @@ export async function analyzeEarningsDocument(
       user_id: item.user_id,
       earnings_id: earningsId,
       custom_analysis: customAnalysis,
+      custom_prompt_used: item.custom_prompt,
     });
   }
 
@@ -194,7 +196,8 @@ async function regenerateOneDocument(
   try {
     // カスタム分析を再生成
     console.log(`Regenerating analysis for ${earnings.stock_code} ${earnings.fiscal_year}Q${earnings.fiscal_quarter}...`);
-    const newAnalysis = await claude.analyzeWithCustomPrompt(pdfBuffer, customPrompt);
+    const analysisResult = await claude.analyzeWithCustomPrompt(pdfBuffer, customPrompt);
+    const newAnalysis = JSON.stringify(analysisResult);
 
     if (currentAnalysis) {
       // 既存レコードを更新
