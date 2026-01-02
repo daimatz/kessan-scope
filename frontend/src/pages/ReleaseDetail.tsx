@@ -5,6 +5,8 @@ import ReactMarkdown from 'react-markdown';
 import { earningsAPI, chatAPI, getDocumentTypeLabel } from '../api';
 import type { DocumentType } from '../api';
 
+type AnalysisTab = 'standard' | 'custom';
+
 export default function ReleaseDetail() {
   const { releaseId } = useParams<{ releaseId: string }>();
   const queryClient = useQueryClient();
@@ -13,6 +15,8 @@ export default function ReleaseDetail() {
   const [showPdf, setShowPdf] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
+  const [analysisTab, setAnalysisTab] = useState<AnalysisTab>('standard');
+  const [expandedHistory, setExpandedHistory] = useState<number | null>(null);
   const chatMessagesRef = useRef<HTMLDivElement>(null);
 
   const { data, isLoading, error } = useQuery({
@@ -106,7 +110,7 @@ export default function ReleaseDetail() {
     );
   }
 
-  const { release, customAnalysis, prevRelease, nextRelease } = data;
+  const { release, customAnalysis, analysisHistory, prevRelease, nextRelease } = data;
   const messages = chatData?.messages || [];
   const periodLabel = release.fiscal_quarter
     ? `${release.fiscal_year}年 Q${release.fiscal_quarter}`
@@ -216,7 +220,7 @@ export default function ReleaseDetail() {
           )}
 
           {/* 分析セクション */}
-          {release.summary && (
+          {(release.summary || customAnalysis) && (
             <section className="section analysis-section">
               {/* 時系列ナビゲーション */}
               <nav className="timeline-nav">
@@ -237,100 +241,151 @@ export default function ReleaseDetail() {
                 )}
               </nav>
 
-              <div className="tab-content">
-                <h2>概要</h2>
-                <p className="overview">{release.summary.overview}</p>
-
-                <div className="metrics-grid">
-                  <div className="metric">
-                    <div className="metric-label">売上高</div>
-                    <div className="metric-value">{release.summary.keyMetrics.revenue}</div>
-                  </div>
-                  <div className="metric">
-                    <div className="metric-label">営業利益</div>
-                    <div className="metric-value">{release.summary.keyMetrics.operatingIncome}</div>
-                  </div>
-                  <div className="metric">
-                    <div className="metric-label">純利益</div>
-                    <div className="metric-value">{release.summary.keyMetrics.netIncome}</div>
-                  </div>
-                  <div className="metric">
-                    <div className="metric-label">前年同期比</div>
-                    <div className="metric-value">{release.summary.keyMetrics.yoyGrowth}</div>
-                  </div>
-                </div>
-
-                <div className="highlights-grid">
-                  <div className="highlight-section">
-                    <h3>ハイライト</h3>
-                    {release.highlights.length > 0 ? (
-                      <ul className="highlight-list positive">
-                        {release.highlights.map((h, i) => (
-                          <li key={i}>{h}</li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="empty">情報なし</p>
-                    )}
-                  </div>
-
-                  <div className="highlight-section">
-                    <h3>ローライト</h3>
-                    {release.lowlights.length > 0 ? (
-                      <ul className="highlight-list negative">
-                        {release.lowlights.map((l, i) => (
-                          <li key={i}>{l}</li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="empty">情報なし</p>
-                    )}
-                  </div>
-                </div>
+              {/* タブヘッダー */}
+              <div className="analysis-tabs">
+                <button
+                  className={`analysis-tab ${analysisTab === 'standard' ? 'active' : ''}`}
+                  onClick={() => setAnalysisTab('standard')}
+                  disabled={!release.summary}
+                >
+                  標準分析
+                </button>
+                <button
+                  className={`analysis-tab ${analysisTab === 'custom' ? 'active' : ''}`}
+                  onClick={() => setAnalysisTab('custom')}
+                  disabled={!customAnalysis}
+                >
+                  カスタム分析
+                </button>
               </div>
-            </section>
-          )}
 
-          {/* カスタム分析セクション */}
-          {customAnalysis && (
-            <section className="section">
-              <h2>カスタム分析</h2>
-              {customAnalysis.overview && (
-                <p className="overview">{customAnalysis.overview}</p>
-              )}
+              {/* 標準分析タブ */}
+              {analysisTab === 'standard' && release.summary && (
+                <div className="tab-content">
+                  <h2>概要</h2>
+                  <p className="overview">{release.summary.overview}</p>
 
-              {(customAnalysis.highlights.length > 0 || customAnalysis.lowlights.length > 0) && (
-                <div className="highlights-grid">
-                  <div className="highlight-section">
-                    <h3>ハイライト</h3>
-                    {customAnalysis.highlights.length > 0 ? (
-                      <ul className="highlight-list positive">
-                        {customAnalysis.highlights.map((h, i) => (
-                          <li key={i}>{h}</li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="empty">情報なし</p>
-                    )}
+                  <div className="metrics-grid">
+                    <div className="metric">
+                      <div className="metric-label">売上高</div>
+                      <div className="metric-value">{release.summary.keyMetrics.revenue}</div>
+                    </div>
+                    <div className="metric">
+                      <div className="metric-label">営業利益</div>
+                      <div className="metric-value">{release.summary.keyMetrics.operatingIncome}</div>
+                    </div>
+                    <div className="metric">
+                      <div className="metric-label">純利益</div>
+                      <div className="metric-value">{release.summary.keyMetrics.netIncome}</div>
+                    </div>
+                    <div className="metric">
+                      <div className="metric-label">前年同期比</div>
+                      <div className="metric-value">{release.summary.keyMetrics.yoyGrowth}</div>
+                    </div>
                   </div>
 
-                  <div className="highlight-section">
-                    <h3>ローライト</h3>
-                    {customAnalysis.lowlights.length > 0 ? (
-                      <ul className="highlight-list negative">
-                        {customAnalysis.lowlights.map((l, i) => (
-                          <li key={i}>{l}</li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="empty">情報なし</p>
-                    )}
+                  <div className="highlights-grid">
+                    <div className="highlight-section">
+                      <h3>ハイライト</h3>
+                      {release.highlights.length > 0 ? (
+                        <ul className="highlight-list positive">
+                          {release.highlights.map((h, i) => (
+                            <li key={i}>{h}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="empty">情報なし</p>
+                      )}
+                    </div>
+
+                    <div className="highlight-section">
+                      <h3>ローライト</h3>
+                      {release.lowlights.length > 0 ? (
+                        <ul className="highlight-list negative">
+                          {release.lowlights.map((l, i) => (
+                            <li key={i}>{l}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="empty">情報なし</p>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
 
-              {customAnalysis.analysis && (
-                <div className="custom-analysis">{customAnalysis.analysis}</div>
+              {/* カスタム分析タブ */}
+              {analysisTab === 'custom' && customAnalysis && (
+                <div className="tab-content">
+                  <h2>カスタム分析</h2>
+                  {customAnalysis.overview && (
+                    <p className="overview">{customAnalysis.overview}</p>
+                  )}
+
+                  {(customAnalysis.highlights.length > 0 || customAnalysis.lowlights.length > 0) && (
+                    <div className="highlights-grid">
+                      <div className="highlight-section">
+                        <h3>ハイライト</h3>
+                        {customAnalysis.highlights.length > 0 ? (
+                          <ul className="highlight-list positive">
+                            {customAnalysis.highlights.map((h, i) => (
+                              <li key={i}>{h}</li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="empty">情報なし</p>
+                        )}
+                      </div>
+
+                      <div className="highlight-section">
+                        <h3>ローライト</h3>
+                        {customAnalysis.lowlights.length > 0 ? (
+                          <ul className="highlight-list negative">
+                            {customAnalysis.lowlights.map((l, i) => (
+                              <li key={i}>{l}</li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="empty">情報なし</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {customAnalysis.analysis && (
+                    <div className="custom-analysis">{customAnalysis.analysis}</div>
+                  )}
+
+                  {/* 分析履歴 */}
+                  {analysisHistory.length > 0 && (
+                    <div className="analysis-history">
+                      <h3>分析履歴 ({analysisHistory.length}件)</h3>
+                      {analysisHistory.map((item, index) => (
+                        <div key={index} className="history-item">
+                          <div
+                            className="history-header"
+                            onClick={() => setExpandedHistory(expandedHistory === index ? null : index)}
+                          >
+                            <div className="history-prompt">{item.prompt}</div>
+                            <div className="history-meta">
+                              <span className="history-date">
+                                {new Date(item.created_at).toLocaleString('ja-JP')}
+                              </span>
+                              <span className="history-toggle">
+                                {expandedHistory === index ? '▼' : '▶'}
+                              </span>
+                            </div>
+                          </div>
+                          {expandedHistory === index && (
+                            <div className="history-content">
+                              <p>{item.analysis}</p>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               )}
             </section>
           )}
