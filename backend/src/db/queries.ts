@@ -541,3 +541,34 @@ export async function getAllAnalysesForEarnings(
 
   return result.results;
 }
+
+// 過去の決算を取得（チャットコンテキスト用、直近N件）
+export interface PastEarningsForChat {
+  id: string;
+  fiscal_year: string;
+  fiscal_quarter: number;
+  announcement_date: string;
+  summary: string | null;
+  highlights: string | null;
+  lowlights: string | null;
+}
+
+export async function getPastEarningsForChat(
+  db: D1Database,
+  stockCode: string,
+  currentEarningsId: string,
+  limit: number = 4
+): Promise<PastEarningsForChat[]> {
+  // 現在の決算より古い決算を取得（announcement_date順）
+  const result = await db.prepare(`
+    SELECT id, fiscal_year, fiscal_quarter, announcement_date, summary, highlights, lowlights
+    FROM earnings
+    WHERE stock_code = ?
+      AND id != ?
+      AND announcement_date < (SELECT announcement_date FROM earnings WHERE id = ?)
+    ORDER BY announcement_date DESC
+    LIMIT ?
+  `).bind(stockCode, currentEarningsId, currentEarningsId, limit).all<PastEarningsForChat>();
+
+  return result.results;
+}

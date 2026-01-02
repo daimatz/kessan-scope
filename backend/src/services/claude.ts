@@ -152,7 +152,125 @@ ${customPrompt}
     return JSON.parse(jsonText) as CustomAnalysisSummary;
   }
 
-  // 決算についてのチャット
+  // 過去の決算履歴の型
+  static formatPastEarningsContext(
+    pastEarnings: Array<{
+      fiscal_year: string;
+      fiscal_quarter: number;
+      summary: EarningsSummary | null;
+      highlights: string[];
+      lowlights: string[];
+    }>
+  ): string {
+    if (pastEarnings.length === 0) {
+      return '';
+    }
+
+    const sections = pastEarnings.map((e) => {
+      const parts = [`=== ${e.fiscal_year}年 Q${e.fiscal_quarter} ===`];
+
+      if (e.summary?.overview) {
+        parts.push(`概要: ${e.summary.overview}`);
+      }
+
+      if (e.highlights.length > 0) {
+        parts.push(`ハイライト:\n${e.highlights.map(h => `  - ${h}`).join('\n')}`);
+      }
+
+      if (e.lowlights.length > 0) {
+        parts.push(`ローライト:\n${e.lowlights.map(l => `  - ${l}`).join('\n')}`);
+      }
+
+      if (e.summary?.keyMetrics) {
+        const m = e.summary.keyMetrics;
+        parts.push(`主要指標: 売上${m.revenue} / 営業利益${m.operatingIncome} / 純利益${m.netIncome} / 前年比${m.yoyGrowth}`);
+      }
+
+      return parts.join('\n');
+    });
+
+    return sections.join('\n\n');
+  }
+
+  // 決算についてのチャット（PDFベース + 過去の経緯）
+  async chatWithPdf(
+    pdfBuffer: ArrayBuffer,
+    currentEarnings: { fiscal_year: string; fiscal_quarter: number; stock_code: string },
+    pastEarningsContext: string,
+    chatHistory: Array<{ role: 'user' | 'assistant'; content: string }>,
+    userMessage: string
+  ): Promise<string> {
+    const base64Pdf = this.arrayBufferToBase64(pdfBuffer);
+
+    const systemPrompt = `あなたは事業戦略コンサルタントです。決算資料について、事業家目線で質問に答えてください。
+
+【重要な姿勢】
+- 株価や投資リターンには一切言及しない
+- 経営判断の背景、事業戦略の意図を深掘りする
+- 過去からの経緯、意思決定の連続性を踏まえて回答する
+- 具体的なページ番号や記載箇所を示して回答する
+- セグメント別の戦略的意思決定を読み解く
+- 競争環境の変化と経営の対応を分析する
+
+【現在の決算】
+${currentEarnings.stock_code} - ${currentEarnings.fiscal_year}年 Q${currentEarnings.fiscal_quarter}
+（添付PDFを参照してください）
+
+${pastEarningsContext ? `【過去の決算履歴（経緯把握用）】\n${pastEarningsContext}` : ''}`;
+
+    // 最初のメッセージにPDFを含める
+    const firstUserContent: Anthropic.ContentBlockParam[] = [
+      {
+        type: 'document',
+        source: {
+          type: 'base64',
+          media_type: 'application/pdf',
+          data: base64Pdf,
+        },
+      },
+      {
+        type: 'text',
+        text: chatHistory.length === 0
+          ? userMessage
+          : '（決算資料PDFを添付しました。以降の質問に回答してください。）',
+      },
+    ];
+
+    // メッセージ履歴を構築
+    const messages: Anthropic.MessageParam[] = [
+      { role: 'user', content: firstUserContent },
+    ];
+
+    // 過去の会話履歴がある場合は追加
+    if (chatHistory.length > 0) {
+      // 最初のuser発言に対するダミーのassistant応答
+      messages.push({ role: 'assistant', content: '承知しました。決算資料を確認しました。ご質問をどうぞ。' });
+
+      // 会話履歴を追加
+      for (const msg of chatHistory) {
+        messages.push({ role: msg.role, content: msg.content });
+      }
+
+      // 新しいユーザーメッセージ
+      messages.push({ role: 'user', content: userMessage });
+    }
+
+    const response = await this.client.messages.create({
+      model: this.model,
+      max_tokens: 2048,
+      system: systemPrompt,
+      messages,
+    });
+
+    const textBlock = response.content.find((block) => block.type === 'text');
+    if (!textBlock || textBlock.type !== 'text') {
+      throw new Error('No text response from Claude');
+    }
+
+    return textBlock.text;
+  }
+
+  // 決算についてのチャット（旧: サマリーベース、フォールバック用）
   async chat(
     earningsSummary: EarningsSummary,
     messages: Array<{ role: 'user' | 'assistant'; content: string }>,
