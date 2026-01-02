@@ -1,8 +1,37 @@
 // 決算分析サービス
 // PDFをClaudeで分析し、サマリーとカスタム分析を生成
 
+import { PDFDocument } from 'pdf-lib';
 import { ClaudeService } from './claude';
 import { getPdfFromR2 } from './pdfStorage';
+
+// Claude APIのページ数上限
+const MAX_PDF_PAGES = 100;
+
+// PDFが100ページを超える場合、先頭100ページだけを抽出
+async function truncatePdfIfNeeded(pdfBuffer: ArrayBuffer): Promise<ArrayBuffer> {
+  try {
+    const pdfDoc = await PDFDocument.load(pdfBuffer);
+    const pageCount = pdfDoc.getPageCount();
+
+    if (pageCount <= MAX_PDF_PAGES) {
+      return pdfBuffer;
+    }
+
+    console.log(`Truncating PDF from ${pageCount} to ${MAX_PDF_PAGES} pages`);
+
+    const newPdfDoc = await PDFDocument.create();
+    const pageIndices = Array.from({ length: MAX_PDF_PAGES }, (_, i) => i);
+    const pages = await newPdfDoc.copyPages(pdfDoc, pageIndices);
+    pages.forEach(page => newPdfDoc.addPage(page));
+
+    const truncatedBuffer = await newPdfDoc.save();
+    return truncatedBuffer.buffer as ArrayBuffer;
+  } catch (error) {
+    console.error('Failed to truncate PDF:', error);
+    return pdfBuffer; // 失敗したら元のバッファを返す
+  }
+}
 import {
   updateEarningsAnalysis,
   getWatchlistByStockCode,
@@ -37,11 +66,14 @@ export async function analyzeEarningsDocument(
 ): Promise<AnalyzeResult | null> {
   const claude = new ClaudeService(env.ANTHROPIC_API_KEY);
 
+  // 100ページを超える場合は先頭100ページに切り詰め
+  const truncatedBuffer = await truncatePdfIfNeeded(pdfBuffer);
+
   // 基本サマリーを生成
   console.log('Analyzing PDF with Claude...');
   let summary: EarningsSummary;
   try {
-    summary = await claude.analyzeEarningsPdf(pdfBuffer);
+    summary = await claude.analyzeEarningsPdf(truncatedBuffer);
   } catch (error) {
     console.error('Failed to analyze PDF:', error);
     return null;
@@ -79,7 +111,7 @@ export async function analyzeEarningsDocument(
     if (item.custom_prompt) {
       try {
         console.log(`Generating custom analysis for user ${item.user_id}...`);
-        const analysisResult = await claude.analyzeWithCustomPrompt(pdfBuffer, item.custom_prompt);
+        const analysisResult = await claude.analyzeWithCustomPrompt(truncatedBuffer, item.custom_prompt);
         customAnalysis = JSON.stringify(analysisResult);
         customAnalysisCount++;
       } catch (error) {
@@ -161,8 +193,10 @@ export async function analyzeEarningsRelease(
         console.log(`Skipping large PDF (${(pdfBuffer.byteLength / 1024 / 1024).toFixed(1)}MB): ${docType}`);
         continue;
       }
+      // 100ページを超える場合は先頭100ページに切り詰め
+      const truncatedBuffer = await truncatePdfIfNeeded(pdfBuffer);
       pdfDocuments.push({
-        buffer: pdfBuffer,
+        buffer: truncatedBuffer,
         type: docType,
       });
       usedTypes.add(docType);
@@ -362,10 +396,13 @@ async function regenerateOneDocument(
     return 'skipped';
   }
 
+  // 100ページを超える場合は先頭100ページに切り詰め
+  const truncatedBuffer = await truncatePdfIfNeeded(pdfBuffer);
+
   try {
     // カスタム分析を再生成
     console.log(`Regenerating analysis for ${earnings.stock_code} ${earnings.fiscal_year}Q${earnings.fiscal_quarter}...`);
-    const analysisResult = await claude.analyzeWithCustomPrompt(pdfBuffer, customPrompt);
+    const analysisResult = await claude.analyzeWithCustomPrompt(truncatedBuffer, customPrompt);
     const newAnalysis = JSON.stringify(analysisResult);
 
     if (currentAnalysis) {
