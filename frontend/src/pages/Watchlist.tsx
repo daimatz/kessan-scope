@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { watchlistAPI, stocksAPI, type Stock } from '../api';
 
@@ -209,8 +210,10 @@ export default function Watchlist() {
             {items.map((item) => (
               <div key={item.id} className="watchlist-item">
                 <div className="item-header">
-                  <span className="stock-code">{item.stock_code}</span>
-                  <span className="stock-name">{item.stock_name || '名称未設定'}</span>
+                  <Link to={`/stocks/${item.stock_code}`} className="stock-link">
+                    <span className="stock-code">{item.stock_code}</span>
+                    <span className="stock-name">{item.stock_name || '名称未設定'}</span>
+                  </Link>
                   <button
                     onClick={() => removeMutation.mutate(item.id)}
                     className="delete-btn"

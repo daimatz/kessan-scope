@@ -46,6 +46,17 @@ export default function Dashboard() {
     <div className="page">
       <h1>ダッシュボード</h1>
 
+      <nav className="dashboard-nav">
+        <Link to="/watchlist" className="dashboard-nav-item">
+          <span className="nav-icon">👁️</span>
+          <span>ウォッチリスト</span>
+        </Link>
+        <Link to="/settings" className="dashboard-nav-item">
+          <span className="nav-icon">⚙️</span>
+          <span>設定</span>
+        </Link>
+      </nav>
+
       {releases.length === 0 ? (
         <div className="empty-state">
           <p>決算データがありません</p>

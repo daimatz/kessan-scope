@@ -162,6 +162,10 @@ earnings.get('/release/:releaseId', async (c) => {
     return c.json({ error: '決算発表が見つかりません' }, 404);
   }
 
+  // ウォッチリストから銘柄名を取得
+  const watchlist = await getWatchlist(c.env.DB, userId);
+  const watchlistItem = watchlist.find(w => w.stock_code === release.stock_code);
+
   // リリースに紐づくドキュメント一覧を取得
   const documents = await getDocumentsForRelease(c.env.DB, releaseId);
 
@@ -221,6 +225,7 @@ earnings.get('/release/:releaseId', async (c) => {
       id: release.id,
       release_type: release.release_type,
       stock_code: release.stock_code,
+      stock_name: watchlistItem?.stock_name || null,
       fiscal_year: release.fiscal_year,
       fiscal_quarter: release.fiscal_quarter,
       summary,

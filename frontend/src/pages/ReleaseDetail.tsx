@@ -134,7 +134,7 @@ export default function ReleaseDetail() {
         </div>
         <div className="title-with-nav">
           <h1>
-            {release.stock_code} - {periodLabel}
+            {release.stock_code} {release.stock_name || ''} - {periodLabel}
           </h1>
           <nav className="earnings-nav">
             {prevUrl ? (
@@ -152,10 +152,6 @@ export default function ReleaseDetail() {
               <span className="nav-link nav-next disabled">次 →</span>
             )}
           </nav>
-        </div>
-        <div className="meta">
-          <span className="doc-count">{release.documents.length}件の資料</span>
-          {notifiedAt && <span className="notified">通知済み</span>}
         </div>
       </header>
 

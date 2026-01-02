@@ -26,6 +26,11 @@ body {
   line-height: 1.6;
 }
 
+#root {
+  width: 100%;
+  min-height: 100vh;
+}
+
 a {
   color: var(--primary);
   text-decoration: none;
@@ -347,6 +352,22 @@ input:focus, textarea:focus, select:focus {
   padding-top: 72px;
 }
 
+@media (max-width: 768px) {
+  .layout-hamburger .main-content {
+    padding: 72px 12px 16px;
+  }
+
+  .layout-hamburger .page {
+    max-width: none;
+    width: 100%;
+  }
+
+  .layout-hamburger .section {
+    max-width: none;
+    width: 100%;
+  }
+}
+
 /* トップバー */
 .topbar {
   position: fixed;
@@ -401,15 +422,6 @@ input:focus, textarea:focus, select:focus {
 .topbar-logo .logo-text {
   font-size: 18px;
   font-weight: 600;
-}
-
-.topbar-user {
-  margin-left: auto;
-}
-
-.topbar-user .user-email {
-  font-size: 13px;
-  color: var(--gray-400);
 }
 
 /* スライドメニュー */
@@ -473,6 +485,19 @@ input:focus, textarea:focus, select:focus {
 .slide-menu-footer {
   padding-top: 20px;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.menu-user-info {
+  margin-bottom: 16px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+}
+
+.menu-user-info .user-email {
+  font-size: 13px;
+  color: var(--gray-400);
+  word-break: break-all;
 }
 
 .slide-menu-footer .logout-btn {
@@ -576,12 +601,14 @@ input:focus, textarea:focus, select:focus {
   flex: 1;
   padding: 32px 48px;
   min-height: 100vh;
+  width: 100%;
 }
 
 /* Page */
 .page {
   animation: fadeIn 0.3s ease;
   max-width: 1200px;
+  width: 100%;
 }
 
 @keyframes fadeIn {
@@ -596,11 +623,14 @@ input:focus, textarea:focus, select:focus {
 }
 
 .section {
+  display: block;
   background: white;
   border-radius: 12px;
   padding: 28px 32px;
   margin-bottom: 28px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .section h2 {
@@ -613,6 +643,38 @@ input:focus, textarea:focus, select:focus {
 .section-description {
   color: var(--gray-500);
   margin-bottom: 16px;
+}
+
+/* Dashboard Nav */
+.dashboard-nav {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.dashboard-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  background: white;
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  color: var(--gray-700);
+  text-decoration: none;
+  font-size: 15px;
+  transition: all 0.2s;
+}
+
+.dashboard-nav-item:hover {
+  background: var(--gray-50);
+  border-color: var(--primary);
+  color: var(--primary);
+  text-decoration: none;
+}
+
+.dashboard-nav-item .nav-icon {
+  font-size: 18px;
 }
 
 /* Empty state */
@@ -706,7 +768,6 @@ input:focus, textarea:focus, select:focus {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  max-width: 700px;
 }
 
 .form-row {
@@ -731,8 +792,14 @@ input:focus, textarea:focus, select:focus {
 /* Watchlist */
 .watchlist-items {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  grid-template-columns: repeat(2, 1fr);
   gap: 20px;
+}
+
+@media (max-width: 900px) {
+  .watchlist-items {
+    grid-template-columns: 1fr;
+  }
 }
 
 .watchlist-item {
@@ -747,6 +814,18 @@ input:focus, textarea:focus, select:focus {
   align-items: center;
   gap: 12px;
   margin-bottom: 12px;
+}
+
+.item-header .stock-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.item-header .stock-link:hover {
+  color: var(--primary);
 }
 
 .item-header .delete-btn {
@@ -1415,11 +1494,12 @@ input:focus, textarea:focus, select:focus {
 .info-row {
   display: flex;
   gap: 24px;
-  align-items: center;
+  align-items: baseline;
 }
 
 .info-label {
-  width: 180px;
+  width: 120px;
+  flex-shrink: 0;
   color: var(--gray-500);
   font-size: 15px;
 }
@@ -1427,6 +1507,25 @@ input:focus, textarea:focus, select:focus {
 .info-value {
   font-weight: 500;
   font-size: 15px;
+  word-break: break-all;
+  min-width: 0;
+}
+
+@media (max-width: 768px) {
+  .info-row {
+    flex-direction: column;
+    gap: 4px;
+    align-items: flex-start;
+  }
+
+  .info-label {
+    width: auto;
+    font-size: 13px;
+  }
+
+  .info-value {
+    font-size: 14px;
+  }
 }
 
 .settings-form {
@@ -1489,10 +1588,6 @@ input:focus, textarea:focus, select:focus {
   .highlights-grid {
     grid-template-columns: 1fr;
   }
-
-  .watchlist-items {
-    grid-template-columns: 1fr;
-  }
 }
 
 @media (max-width: 768px) {
@@ -1501,13 +1596,26 @@ input:focus, textarea:focus, select:focus {
     padding: 12px;
   }
 
-  .logo-text, .nav-label, .user-email {
+  /* 旧サイドバー用（現在は使用していない） */
+  .sidebar .logo-text,
+  .sidebar .nav-label,
+  .sidebar .user-email {
     display: none;
   }
 
   .main-content {
-    margin-left: 60px;
+    margin-left: 0;
     padding: 16px;
+  }
+
+  .section {
+    padding: 20px 16px;
+    border-radius: 8px;
+    width: 100%;
+  }
+
+  .page {
+    width: 100%;
   }
 
   .page h1 {
@@ -1515,7 +1623,8 @@ input:focus, textarea:focus, select:focus {
   }
 
   .detail-header h1 {
-    font-size: 24px;
+    font-size: 20px;
+    line-height: 1.4;
   }
 
   .title-with-nav {
@@ -1532,6 +1641,24 @@ input:focus, textarea:focus, select:focus {
   .nav-link {
     padding: 6px 12px;
     font-size: 13px;
+    white-space: nowrap;
+  }
+
+  .selected-document-info {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .timeline-nav {
+    gap: 8px;
+    padding: 12px;
+  }
+
+  .timeline-link,
+  .timeline-current {
+    font-size: 13px;
+    white-space: nowrap;
   }
 
   .form-row {
@@ -1710,10 +1837,12 @@ input:focus, textarea:focus, select:focus {
 .stock-group-title .stock-code {
   font-weight: 700;
   font-size: 18px;
+  min-width: 60px;
 }
 
 .stock-group-title .stock-name {
   color: var(--gray-600);
+  min-width: 120px;
 }
 
 .stock-count {
@@ -1746,7 +1875,8 @@ input:focus, textarea:focus, select:focus {
 
 .earnings-item .earnings-period {
   font-weight: 500;
-  min-width: 120px;
+  width: 100px;
+  flex-shrink: 0;
 }
 
 .earnings-item .earnings-date {
@@ -1763,6 +1893,7 @@ input:focus, textarea:focus, select:focus {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
+  min-width: 180px;
 }
 
 .doc-label {
@@ -1770,6 +1901,7 @@ input:focus, textarea:focus, select:focus {
   padding: 3px 8px;
   border-radius: 4px;
   font-weight: 500;
+  white-space: nowrap;
 }
 
 .doc-label-earnings_summary {
@@ -1840,7 +1972,7 @@ input:focus, textarea:focus, select:focus {
 
 .earnings-table-header {
   display: grid;
-  grid-template-columns: 120px 1fr 180px;
+  grid-template-columns: 120px 280px 180px;
   gap: 16px;
   padding: 12px 16px;
   background: var(--gray-100);
@@ -1851,7 +1983,7 @@ input:focus, textarea:focus, select:focus {
 
 .earnings-table-row {
   display: grid;
-  grid-template-columns: 120px 1fr 180px;
+  grid-template-columns: 120px 280px 180px;
   gap: 16px;
   padding: 12px 16px;
   text-decoration: none;
@@ -1889,6 +2021,7 @@ input:focus, textarea:focus, select:focus {
   display: inline-block;
   padding: 2px 8px;
   border-radius: 4px;
+  white-space: nowrap;
   font-size: 11px;
   font-weight: 500;
 }
@@ -1997,7 +2130,8 @@ input:focus, textarea:focus, select:focus {
   background: white;
   color: var(--gray-700);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+  white-space: nowrap;
 }
 
 .document-tab:hover {
@@ -2162,13 +2296,27 @@ input:focus, textarea:focus, select:focus {
 
 /* Responsive */
 @media (max-width: 768px) {
-  .earnings-table-header,
-  .earnings-table-row {
-    grid-template-columns: 1fr;
-    gap: 4px;
+  .earnings-table-header {
+    display: none;
   }
 
-  .col-status {
-    margin-top: 8px;
+  .earnings-table-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 16px;
+  }
+
+  .earnings-table-row .col-period {
+    min-width: 80px;
+  }
+
+  .earnings-table-row .col-docs {
+    flex: 1;
+  }
+
+  .earnings-table-row .col-status {
+    width: 100%;
+    margin-top: 4px;
   }
 }

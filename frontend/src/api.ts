@@ -395,6 +395,7 @@ export interface ReleaseDetail {
   id: string;
   release_type: ReleaseType;
   stock_code: string;
+  stock_name: string | null;
   fiscal_year: string;
   fiscal_quarter: number | null;
   summary: EarningsSummary | null;

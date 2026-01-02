@@ -38,9 +38,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <span className="logo-icon">📈</span>
           <span className="logo-text">Stock Watcher</span>
         </Link>
-        <div className="topbar-user">
-          <span className="user-email">{data?.user?.email}</span>
-        </div>
       </header>
 
       {/* スライドメニュー */}
@@ -61,6 +58,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             ))}
           </ul>
           <div className="slide-menu-footer">
+            <div className="menu-user-info">
+              <span className="user-email">{data?.user?.email}</span>
+            </div>
             <button onClick={handleLogout} className="logout-btn">
               ログアウト
             </button>
