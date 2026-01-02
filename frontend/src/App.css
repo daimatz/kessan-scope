@@ -624,10 +624,34 @@ input:focus, textarea:focus, select:focus {
   border: 1px solid var(--gray-200);
 }
 
+.prompt-buttons {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
 .edit-btn {
-  align-self: flex-start;
   font-size: 12px;
   padding: 4px 12px;
+}
+
+.regenerate-btn {
+  font-size: 12px;
+  padding: 4px 12px;
+  background: var(--purple-500, #7c3aed);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.regenerate-btn:hover:not(:disabled) {
+  background: var(--purple-600, #6d28d9);
+}
+
+.regenerate-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .edit-prompt {

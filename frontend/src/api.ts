@@ -69,6 +69,10 @@ export const watchlistAPI = {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
+  regenerate: (id: string) =>
+    fetchAPI<{ success: boolean; message?: string }>(`/api/watchlist/${id}/regenerate`, {
+      method: 'POST',
+    }),
 };
 
 // Earnings API

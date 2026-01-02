@@ -2,7 +2,7 @@
 export interface Env {
   DB: D1Database;
   PDF_BUCKET: R2Bucket;
-  IMPORT_QUEUE: Queue<ImportQueueMessage>;
+  IMPORT_QUEUE: Queue<QueueMessage>;
   ANTHROPIC_API_KEY: string;
   MAILERSEND_API_KEY: string;
   MAILERSEND_FROM_EMAIL: string;
@@ -21,6 +21,15 @@ export interface ImportQueueMessage {
   userId: string;
   userEmail: string;
 }
+
+export interface RegenerateQueueMessage {
+  type: 'regenerate_custom_analysis';
+  watchlistItemId: string;
+  userId: string;
+  userEmail: string;
+}
+
+export type QueueMessage = ImportQueueMessage | RegenerateQueueMessage;
 
 // Database Models
 export interface User {
@@ -66,6 +75,7 @@ export interface UserEarningsAnalysis {
   user_id: string;
   earnings_id: string;
   custom_analysis: string | null;
+  custom_prompt_used: string | null;
   notified_at: string | null;
   created_at: string;
 }
@@ -76,6 +86,15 @@ export interface ChatMessage {
   earnings_id: string;
   role: 'user' | 'assistant';
   content: string;
+  created_at: string;
+}
+
+export interface CustomAnalysisHistory {
+  id: string;
+  user_id: string;
+  earnings_id: string;
+  custom_prompt: string;
+  analysis: string;
   created_at: string;
 }
 

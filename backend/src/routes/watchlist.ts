@@ -1,11 +1,12 @@
 import { Hono } from 'hono';
-import type { Env } from '../types';
+import type { Env, RegenerateQueueMessage } from '../types';
 import {
   getWatchlist,
   addToWatchlist,
   removeFromWatchlist,
   updateWatchlistItem,
   getUserById,
+  getWatchlistItemById,
 } from '../db/queries';
 import { enqueueHistoricalImport } from '../services/historicalImport';
 
@@ -104,6 +105,47 @@ watchlist.patch('/:id', async (c) => {
   }
 
   return c.json({ success: true });
+});
+
+// カスタム分析を再生成
+watchlist.post('/:id/regenerate', async (c) => {
+  const userId = c.get('userId');
+  const id = c.req.param('id');
+
+  // ウォッチリストアイテムを取得
+  const item = await getWatchlistItemById(c.env.DB, id, userId);
+  if (!item) {
+    return c.json({ error: '銘柄が見つかりません' }, 404);
+  }
+
+  if (!item.custom_prompt) {
+    return c.json({ error: 'カスタムプロンプトが設定されていません' }, 400);
+  }
+
+  // ユーザー情報を取得
+  const user = await getUserById(c.env.DB, userId);
+  if (!user) {
+    return c.json({ error: 'ユーザーが見つかりません' }, 401);
+  }
+
+  // Queueに再生成ジョブを追加
+  const message: RegenerateQueueMessage = {
+    type: 'regenerate_custom_analysis',
+    watchlistItemId: id,
+    userId,
+    userEmail: user.email,
+  };
+
+  c.executionCtx.waitUntil(
+    c.env.IMPORT_QUEUE.send(message).catch((error) => {
+      console.error(`Failed to enqueue regeneration for ${item.stock_code}:`, error);
+    })
+  );
+
+  return c.json({
+    success: true,
+    message: '再分析を開始しました。完了したらメールでお知らせします。',
+  });
 });
 
 export default watchlist;

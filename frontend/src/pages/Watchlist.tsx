@@ -88,6 +88,16 @@ export default function Watchlist() {
     },
   });
 
+  const regenerateMutation = useMutation({
+    mutationFn: (id: string) => watchlistAPI.regenerate(id),
+    onSuccess: (data) => {
+      if (data.message) {
+        setImportMessage(data.message);
+        setTimeout(() => setImportMessage(null), 10000);
+      }
+    },
+  });
+
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedStock) {
@@ -239,15 +249,26 @@ export default function Watchlist() {
                     <div className="prompt-content">
                       {item.custom_prompt || '（未設定）'}
                     </div>
-                    <button
-                      onClick={() => {
-                        setEditingId(item.id);
-                        setEditPrompt(item.custom_prompt || '');
-                      }}
-                      className="edit-btn"
-                    >
-                      編集
-                    </button>
+                    <div className="prompt-buttons">
+                      <button
+                        onClick={() => {
+                          setEditingId(item.id);
+                          setEditPrompt(item.custom_prompt || '');
+                        }}
+                        className="edit-btn"
+                      >
+                        編集
+                      </button>
+                      {item.custom_prompt && (
+                        <button
+                          onClick={() => regenerateMutation.mutate(item.id)}
+                          className="regenerate-btn"
+                          disabled={regenerateMutation.isPending}
+                        >
+                          {regenerateMutation.isPending ? '開始中...' : '再分析'}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>

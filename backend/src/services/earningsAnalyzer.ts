@@ -9,8 +9,12 @@ import {
   createUserEarningsAnalysis,
   getUserEarningsAnalysis,
   getEarningsById,
+  getEarningsByStockCode,
+  saveCustomAnalysisToHistory,
+  updateUserEarningsAnalysis,
+  findCachedAnalysis,
 } from '../db/queries';
-import type { Env, EarningsSummary } from '../types';
+import type { Env, Earnings, EarningsSummary, WatchlistItem } from '../types';
 
 export interface AnalyzeResult {
   summary: EarningsSummary;
@@ -105,4 +109,160 @@ export async function reanalyzeFromR2(
   }
 
   return analyzeEarningsDocument(env, earningsId, pdfBuffer);
+}
+
+export interface RegenerateResult {
+  total: number;
+  regenerated: number;
+  cached: number;
+  skipped: number;
+}
+
+const REGENERATE_PARALLEL_LIMIT = 3;
+
+// 1ドキュメントの再分析処理
+// 戻り値: 'regenerated' | 'cached' | 'skipped'
+async function regenerateOneDocument(
+  env: Env,
+  claude: ClaudeService,
+  earnings: Earnings,
+  userId: string,
+  customPrompt: string
+): Promise<'regenerated' | 'cached' | 'skipped'> {
+  // R2 キーがない場合はスキップ
+  if (!earnings.r2_key) {
+    return 'skipped';
+  }
+
+  // 現在の分析を取得
+  const currentAnalysis = await getUserEarningsAnalysis(env.DB, userId, earnings.id);
+
+  // 同じプロンプトで既に分析済みならスキップ（キャッシュヒット）
+  if (currentAnalysis?.custom_prompt_used === customPrompt && currentAnalysis?.custom_analysis) {
+    console.log(`Cache hit: ${earnings.stock_code} ${earnings.fiscal_year}Q${earnings.fiscal_quarter}`);
+    return 'cached';
+  }
+
+  // 履歴から同じプロンプトでの分析を検索
+  const cachedAnalysis = await findCachedAnalysis(env.DB, userId, earnings.id, customPrompt);
+  if (cachedAnalysis) {
+    console.log(`History cache hit: ${earnings.stock_code} ${earnings.fiscal_year}Q${earnings.fiscal_quarter}`);
+
+    // 現在の分析を履歴に保存（あれば）
+    if (currentAnalysis?.custom_analysis && currentAnalysis.custom_prompt_used) {
+      await saveCustomAnalysisToHistory(
+        env.DB,
+        userId,
+        earnings.id,
+        currentAnalysis.custom_prompt_used,
+        currentAnalysis.custom_analysis
+      );
+    }
+
+    // キャッシュされた分析を現在の分析として設定
+    if (currentAnalysis) {
+      await updateUserEarningsAnalysis(env.DB, userId, earnings.id, cachedAnalysis, customPrompt);
+    } else {
+      await createUserEarningsAnalysis(env.DB, {
+        user_id: userId,
+        earnings_id: earnings.id,
+        custom_analysis: cachedAnalysis,
+        custom_prompt_used: customPrompt,
+      });
+    }
+    return 'cached';
+  }
+
+  // 既存の分析がある場合は履歴に保存
+  if (currentAnalysis?.custom_analysis && currentAnalysis.custom_prompt_used) {
+    await saveCustomAnalysisToHistory(
+      env.DB,
+      userId,
+      earnings.id,
+      currentAnalysis.custom_prompt_used,
+      currentAnalysis.custom_analysis
+    );
+  }
+
+  // R2 から PDF を取得
+  const pdfBuffer = await getPdfFromR2(env.PDF_BUCKET, earnings.r2_key);
+  if (!pdfBuffer) {
+    console.error(`PDF not found in R2: ${earnings.r2_key}`);
+    return 'skipped';
+  }
+
+  try {
+    // カスタム分析を再生成
+    console.log(`Regenerating analysis for ${earnings.stock_code} ${earnings.fiscal_year}Q${earnings.fiscal_quarter}...`);
+    const newAnalysis = await claude.analyzeWithCustomPrompt(pdfBuffer, customPrompt);
+
+    if (currentAnalysis) {
+      // 既存レコードを更新
+      await updateUserEarningsAnalysis(env.DB, userId, earnings.id, newAnalysis, customPrompt);
+    } else {
+      // 新規レコード作成
+      await createUserEarningsAnalysis(env.DB, {
+        user_id: userId,
+        earnings_id: earnings.id,
+        custom_analysis: newAnalysis,
+        custom_prompt_used: customPrompt,
+      });
+    }
+
+    return 'regenerated';
+  } catch (error) {
+    console.error(`Failed to regenerate analysis for ${earnings.id}:`, error);
+    return 'skipped';
+  }
+}
+
+// ウォッチリストアイテムのカスタム分析を再生成（3並列）
+export async function regenerateCustomAnalysis(
+  env: Env,
+  watchlistItem: WatchlistItem
+): Promise<RegenerateResult> {
+  const { user_id: userId, stock_code: stockCode, custom_prompt: customPrompt } = watchlistItem;
+
+  if (!customPrompt) {
+    return { total: 0, regenerated: 0, cached: 0, skipped: 0 };
+  }
+
+  const claude = new ClaudeService(env.ANTHROPIC_API_KEY);
+  const allEarnings = await getEarningsByStockCode(env.DB, stockCode);
+
+  let regenerated = 0;
+  let cached = 0;
+  let skipped = 0;
+
+  // 3並列で処理
+  for (let i = 0; i < allEarnings.length; i += REGENERATE_PARALLEL_LIMIT) {
+    const batch = allEarnings.slice(i, i + REGENERATE_PARALLEL_LIMIT);
+
+    const results = await Promise.all(
+      batch.map(earnings => regenerateOneDocument(env, claude, earnings, userId, customPrompt))
+    );
+
+    for (const result of results) {
+      switch (result) {
+        case 'regenerated':
+          regenerated++;
+          break;
+        case 'cached':
+          cached++;
+          break;
+        case 'skipped':
+          skipped++;
+          break;
+      }
+    }
+  }
+
+  console.log(`Regeneration complete: ${regenerated} regenerated, ${cached} cached, ${skipped} skipped (total: ${allEarnings.length})`);
+
+  return {
+    total: allEarnings.length,
+    regenerated,
+    cached,
+    skipped,
+  };
 }

@@ -1,4 +1,4 @@
-import type { User, WatchlistItem, Earnings, UserEarningsAnalysis, ChatMessage } from '../types';
+import type { User, WatchlistItem, Earnings, UserEarningsAnalysis, ChatMessage, CustomAnalysisHistory } from '../types';
 
 export function generateId(): string {
   return crypto.randomUUID();
@@ -346,12 +346,13 @@ export async function createUserEarningsAnalysis(db: D1Database, data: {
   user_id: string;
   earnings_id: string;
   custom_analysis: string | null;
+  custom_prompt_used?: string | null;
 }): Promise<UserEarningsAnalysis> {
   const id = generateId();
   await db.prepare(
-    'INSERT INTO user_earnings_analysis (id, user_id, earnings_id, custom_analysis) VALUES (?, ?, ?, ?)'
-  ).bind(id, data.user_id, data.earnings_id, data.custom_analysis).run();
-  
+    'INSERT INTO user_earnings_analysis (id, user_id, earnings_id, custom_analysis, custom_prompt_used) VALUES (?, ?, ?, ?, ?)'
+  ).bind(id, data.user_id, data.earnings_id, data.custom_analysis, data.custom_prompt_used ?? null).run();
+
   const analysis = await db.prepare(
     'SELECT * FROM user_earnings_analysis WHERE id = ?'
   ).bind(id).first<UserEarningsAnalysis>();
@@ -387,10 +388,92 @@ export async function addChatMessage(db: D1Database, data: {
   await db.prepare(
     'INSERT INTO chat_messages (id, user_id, earnings_id, role, content) VALUES (?, ?, ?, ?, ?)'
   ).bind(id, data.user_id, data.earnings_id, data.role, data.content).run();
-  
+
   const message = await db.prepare(
     'SELECT * FROM chat_messages WHERE id = ?'
   ).bind(id).first<ChatMessage>();
   if (!message) throw new Error('Failed to add chat message');
   return message;
+}
+
+// Watchlist item by ID
+export async function getWatchlistItemById(
+  db: D1Database,
+  id: string,
+  userId: string
+): Promise<WatchlistItem | null> {
+  const result = await db.prepare(
+    'SELECT * FROM watchlist WHERE id = ? AND user_id = ?'
+  ).bind(id, userId).first<WatchlistItem>();
+  return result;
+}
+
+// Get all earnings for a stock
+export async function getEarningsByStockCode(db: D1Database, stockCode: string): Promise<Earnings[]> {
+  const result = await db.prepare(
+    'SELECT * FROM earnings WHERE stock_code = ? ORDER BY announcement_date DESC'
+  ).bind(stockCode).all<Earnings>();
+  return result.results;
+}
+
+// Custom analysis history queries
+export async function saveCustomAnalysisToHistory(
+  db: D1Database,
+  userId: string,
+  earningsId: string,
+  customPrompt: string,
+  analysis: string
+): Promise<void> {
+  const id = generateId();
+  await db.prepare(
+    'INSERT INTO custom_analysis_history (id, user_id, earnings_id, custom_prompt, analysis) VALUES (?, ?, ?, ?, ?)'
+  ).bind(id, userId, earningsId, customPrompt, analysis).run();
+}
+
+export async function getCustomAnalysisHistory(
+  db: D1Database,
+  userId: string,
+  earningsId: string
+): Promise<CustomAnalysisHistory[]> {
+  const result = await db.prepare(
+    'SELECT * FROM custom_analysis_history WHERE user_id = ? AND earnings_id = ? ORDER BY created_at DESC'
+  ).bind(userId, earningsId).all<CustomAnalysisHistory>();
+  return result.results;
+}
+
+// Update existing user earnings analysis
+export async function updateUserEarningsAnalysis(
+  db: D1Database,
+  userId: string,
+  earningsId: string,
+  customAnalysis: string | null,
+  customPromptUsed?: string | null
+): Promise<void> {
+  await db.prepare(
+    'UPDATE user_earnings_analysis SET custom_analysis = ?, custom_prompt_used = ? WHERE user_id = ? AND earnings_id = ?'
+  ).bind(customAnalysis, customPromptUsed ?? null, userId, earningsId).run();
+}
+
+// 履歴から同じプロンプトでの分析結果を検索
+export async function findCachedAnalysis(
+  db: D1Database,
+  userId: string,
+  earningsId: string,
+  customPrompt: string
+): Promise<string | null> {
+  // まず現在の分析をチェック
+  const current = await db.prepare(
+    'SELECT custom_analysis FROM user_earnings_analysis WHERE user_id = ? AND earnings_id = ? AND custom_prompt_used = ?'
+  ).bind(userId, earningsId, customPrompt).first<{ custom_analysis: string | null }>();
+
+  if (current?.custom_analysis) {
+    return current.custom_analysis;
+  }
+
+  // 履歴からチェック
+  const history = await db.prepare(
+    'SELECT analysis FROM custom_analysis_history WHERE user_id = ? AND earnings_id = ? AND custom_prompt = ? ORDER BY created_at DESC LIMIT 1'
+  ).bind(userId, earningsId, customPrompt).first<{ analysis: string }>();
+
+  return history?.analysis ?? null;
 }
