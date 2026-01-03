@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import type { Env, EarningsSummary, DocumentType } from '../types';
-import { ChatMessageSchema } from '@stock-watcher/shared';
+import { ChatMessageSchema } from '@kessan-scope/shared';
 import {
   getChatMessagesByRelease,
   addChatMessageForRelease,

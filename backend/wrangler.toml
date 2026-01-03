@@ -1,4 +1,4 @@
-name = "stock-watcher"
+name = "kessan-scope"
 main = "src/index.ts"
 compatibility_date = "2024-12-01"
 compatibility_flags = ["nodejs_compat"]
@@ -6,13 +6,13 @@ compatibility_flags = ["nodejs_compat"]
 # D1 Database
 [[d1_databases]]
 binding = "DB"
-database_name = "stock-watcher-db"
+database_name = "kessan-scope-db"
 database_id = "placeholder" # wrangler d1 create で取得後に更新
 
 # R2 Bucket (PDF storage)
 [[r2_buckets]]
 binding = "PDF_BUCKET"
-bucket_name = "stock-watcher-pdfs"
+bucket_name = "kessan-scope-pdfs"
 
 [vars]
 FRONTEND_URL = "http://localhost:5173"
@@ -32,11 +32,15 @@ crons = ["0 0 * * *", "0 9 * * *"]  # 9:00 JST と 18:00 JST に銘柄リスト�
 
 # Queues
 [[queues.producers]]
-queue = "stock-watcher-import"
+queue = "kessan-scope-import"
 binding = "IMPORT_QUEUE"
 
 [[queues.consumers]]
-queue = "stock-watcher-import"
+queue = "kessan-scope-import"
 max_batch_size = 1
 max_concurrency = 1
 max_retries = 3
+
+# Production environment
+[env.production]
+vars = { FRONTEND_URL = "https://kessan-scope.fyi", ENVIRONMENT = "production" }

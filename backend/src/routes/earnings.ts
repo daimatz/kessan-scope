@@ -4,7 +4,7 @@ import {
   DashboardReleaseSchema,
   StockReleasesResponseSchema,
   ReleaseDetailResponseSchema,
-} from '@stock-watcher/shared';
+} from '@kessan-scope/shared';
 import {
   getWatchlistItemByUserAndStock,
   getEarningsReleaseById,

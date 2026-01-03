@@ -1,55 +1,65 @@
-# Stock Watcher - 株式ウォッチャー
+# Kessan Scope
 
-日本株の四半期決算を自動でウォッチし、LLMによる要約と分析を提供するアプリケーション。
+日本企業の決算発表を自動でウォッチし、AIによる分析を提供するWebアプリケーション。
+
+**URL**: https://kessan-scope.fyi
 
 ## 概要
 
-ユーザーが指定した銘柄の決算発表を自動検知し、決算短信・決算発表資料をLLMで分析。ハイライト・ローライトを抽出してメール通知する。ユーザーは決算内容についてLLMと対話形式で質疑応答が可能。
+ユーザーがウォッチリストに登録した企業の決算発表を TDnet から自動検知し、決算短信・決算説明資料を Claude (Anthropic) で分析。経営戦略の視点からハイライト・ローライトを抽出してメール通知する。決算内容についてAIとチャット形式で質疑応答も可能。
 
 ## 技術スタック
 
 | レイヤー | 技術 |
 |---------|------|
-| ビルド | TypeScript + esbuild (wrangler内蔵) |
-| テスト/型チェック | Vitest + @cloudflare/vitest-pool-workers |
-| フロントエンド | React |
-| バックエンド | Cloudflare Workers |
+| フロントエンド | React + TypeScript + Vite |
+| バックエンド | Cloudflare Workers (Hono) |
 | データベース | Cloudflare D1 (SQLite) |
-| 非同期処理 | Cloudflare Workflows |
-| 認証 | Google OAuth 2.0 |
-| LLM | OpenAI API (モデル選択可能) |
+| ファイルストレージ | Cloudflare R2 (PDF保存) |
+| 非同期処理 | Cloudflare Queues |
+| 認証 | Google OAuth 2.0 / Email+Password |
+| LLM | Claude API (Anthropic) |
 | メール送信 | MailerSend |
-| 決算データ取得 | EDINET API |
+| 決算データ取得 | TDnet (やのしん WEB-API) / IRBANK |
 
 ## 主要機能
 
 ### 1. ユーザー管理
-- Google OAuth によるログイン/登録
-- ユーザープロファイル管理
-- OpenAIモデル設定（gpt-4o, gpt-4-turbo, gpt-3.5-turbo 等）
+- Google OAuth または メール+パスワードによるログイン/登録
+- メールアドレス確認（24時間有効なトークン）
 
 ### 2. 銘柄ウォッチリスト
-- 証券コード（4桁）による銘柄登録
+- 証券コード（4-5桁）による銘柄登録
 - 銘柄ごとのカスタム分析プロンプト設定
-- ウォッチリストの管理（追加/削除/編集）
+  - 例：「海外売上比率の推移に注目」「M&A戦略について分析」
+- 過去決算の自動インポート（IRBANK経由）
 
 ### 3. 決算自動検知・分析
-- EDINET APIを定期ポーリング（Cloudflare Workflows）
-- 四半期決算短信（XBRL/PDF）の取得・解析
-- LLMによる以下の自動生成:
-  - 決算ハイライト（業績の良かった点）
-  - 決算ローライト（懸念事項・課題）
-  - ユーザー定義の分析観点に基づく考察
+- TDnet を定期ポーリング（Cron Trigger: 9:00 / 18:00 JST）
+- 対応資料タイプ:
+  - **決算短信** (earnings_summary)
+  - **決算説明資料** (earnings_presentation)
+  - **成長可能性資料** (growth_potential)
+- Claude による以下の自動生成:
+  - 決算概要（経営戦略視点）
+  - ハイライト（業績・戦略の良かった点）
+  - ローライト（懸念事項・課題）
+  - 主要指標（売上・営業利益・純利益・前年比）
+  - ユーザー定義の分析観点に基づく詳細分析
 
-### 4. 通知システム
-- 決算分析完了時にメール通知（MailerSend）
-- メール内に詳細ページへのリンク
+### 4. カスタム分析
+- ウォッチリストにカスタムプロンプトを設定
+- 同じ決算を異なる分析軸で再分析可能
+- 分析履歴の保存・閲覧
 
-### 5. 決算詳細・履歴ページ
-- 決算サマリーの閲覧
-- 過去の決算履歴一覧
-- LLMとの質疑応答（チャット形式）
-- 質疑応答履歴の保存・閲覧
+### 5. チャット機能
+- 決算資料に対してAIと質疑応答
+- 過去の決算との比較質問にも対応
+- ストリーミングレスポンス
+
+### 6. 通知システム
+- 新規決算分析完了時にメール通知
+- インポート完了・再分析完了時にもメール通知
 
 ## アーキテクチャ
 
@@ -57,250 +67,343 @@
 ┌─────────────────────────────────────────────────────────────────┐
 │                         Cloudflare                              │
 │  ┌──────────────────┐  ┌──────────────────┐  ┌───────────────┐ │
-│  │  Workers (API)   │  │    Workflows     │  │      D1       │ │
+│  │  Workers (API)   │  │     Queues       │  │      D1       │ │
 │  │                  │  │                  │  │   (SQLite)    │ │
-│  │ - Auth           │  │ - EDINET監視     │  │               │ │
-│  │ - REST API       │  │ - 決算取得       │  │ - users       │ │
-│  │ - Chat API       │  │ - LLM分析        │  │ - watchlist   │ │
-│  │                  │  │ - メール送信     │  │ - earnings    │ │
+│  │ - Auth           │  │ - 過去決算       │  │               │ │
+│  │ - REST API       │  │   インポート     │  │ - users       │ │
+│  │ - Chat (SSE)     │  │ - カスタム分析   │  │ - watchlist   │ │
+│  │ - Cron Jobs      │  │   再生成         │  │ - earnings    │ │
 │  └────────┬─────────┘  └────────┬─────────┘  │ - chats       │ │
 │           │                     │            └───────────────┘ │
-└───────────┼─────────────────────┼──────────────────────────────┘
-            │                     │
-            ▼                     ▼
+│  ┌────────┴─────────────────────┴────────────────────────────┐ │
+│  │                          R2                                │ │
+│  │                    (PDF Storage)                           │ │
+│  └────────────────────────────────────────────────────────────┘ │
+└───────────────────────────────────────────────────────────────┘
+            │
+            ▼
     ┌───────────────┐     ┌───────────────┐
     │    React      │     │  External APIs │
     │  (Frontend)   │     │                │
-    │               │     │ - EDINET       │
-    │ - ダッシュボード│     │ - OpenAI       │
-    │ - 銘柄管理     │     │ - MailerSend   │
-    │ - 決算詳細     │     │ - Google OAuth │
-    │ - チャット     │     └───────────────┘
-    └───────────────┘
+    │               │     │ - TDnet        │
+    │ - ダッシュボード│     │ - IRBANK       │
+    │ - 銘柄詳細     │     │ - Claude       │
+    │ - 決算詳細     │     │ - MailerSend   │
+    │ - チャット     │     │ - Google OAuth │
+    └───────────────┘     └───────────────┘
 ```
 
-## データモデル（D1）
+## データモデル
+
+### 主要テーブル
 
 ```sql
 -- ユーザー
 CREATE TABLE users (
   id TEXT PRIMARY KEY,
-  google_id TEXT UNIQUE NOT NULL,
+  google_id TEXT UNIQUE,
   email TEXT UNIQUE NOT NULL,
   name TEXT,
-  openai_model TEXT DEFAULT 'gpt-4o',
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  password_hash TEXT,
+  email_verified INTEGER DEFAULT 0,
+  verification_token TEXT,
+  verification_expires_at DATETIME
 );
 
 -- ウォッチリスト
 CREATE TABLE watchlist (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES users(id),
-  stock_code TEXT NOT NULL,  -- 証券コード（4桁）
-  stock_name TEXT,           -- 銘柄名
-  custom_prompt TEXT,        -- ユーザー定義の分析プロンプト
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  stock_code TEXT NOT NULL,
+  stock_name TEXT,
+  custom_prompt TEXT,  -- ユーザー定義の分析プロンプト
   UNIQUE(user_id, stock_code)
 );
 
--- 決算データ
+-- 決算発表セット（決算短信+説明資料をまとめて管理）
+CREATE TABLE earnings_release (
+  id TEXT PRIMARY KEY,
+  release_type TEXT NOT NULL,  -- 'quarterly_earnings' | 'growth_potential'
+  stock_code TEXT NOT NULL,
+  fiscal_year TEXT NOT NULL,
+  fiscal_quarter INTEGER,      -- 1-4 (NULLは成長可能性資料)
+  summary TEXT,                -- LLM分析結果（JSON）
+  highlights TEXT,             -- ハイライト（JSON配列）
+  lowlights TEXT               -- ローライト（JSON配列）
+);
+
+-- 決算資料（個別ドキュメント）
 CREATE TABLE earnings (
   id TEXT PRIMARY KEY,
+  release_id TEXT REFERENCES earnings_release(id),
   stock_code TEXT NOT NULL,
-  fiscal_year TEXT NOT NULL,      -- 例: "2024"
-  fiscal_quarter INTEGER NOT NULL, -- 1-4
-  announcement_date DATE NOT NULL,
-  edinet_doc_id TEXT,             -- EDINETドキュメントID
-  raw_data TEXT,                  -- 取得した生データ（JSON）
-  summary TEXT,                   -- LLM生成サマリー（JSON）
-  highlights TEXT,                -- ハイライト（JSON配列）
-  lowlights TEXT,                 -- ローライト（JSON配列）
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE(stock_code, fiscal_year, fiscal_quarter)
+  document_type TEXT,          -- 'earnings_summary' | 'earnings_presentation' | 'growth_potential'
+  document_title TEXT,
+  r2_key TEXT,                 -- R2に保存されたPDFのキー
+  announcement_date DATE NOT NULL
 );
 
 -- ユーザー別決算分析
 CREATE TABLE user_earnings_analysis (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES users(id),
-  earnings_id TEXT NOT NULL REFERENCES earnings(id),
-  custom_analysis TEXT,           -- カスタムプロンプトによる分析結果
-  notified_at DATETIME,           -- 通知送信日時
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE(user_id, earnings_id)
+  release_id TEXT NOT NULL REFERENCES earnings_release(id),
+  custom_analysis TEXT,        -- カスタムプロンプトによる分析結果
+  prompt_used TEXT,            -- 使用したプロンプト
+  notified_at DATETIME,
+  UNIQUE(user_id, release_id)
+);
+
+-- カスタム分析履歴
+CREATE TABLE custom_analysis_history (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  release_id TEXT NOT NULL,
+  prompt TEXT NOT NULL,
+  analysis TEXT NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 -- チャット履歴
 CREATE TABLE chat_messages (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES users(id),
-  earnings_id TEXT NOT NULL REFERENCES earnings(id),
-  role TEXT NOT NULL,             -- 'user' | 'assistant'
-  content TEXT NOT NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  release_id TEXT NOT NULL REFERENCES earnings_release(id),
+  role TEXT NOT NULL,          -- 'user' | 'assistant'
+  content TEXT NOT NULL
 );
-```
 
-## Cloudflare Workflows
-
-### 1. EDINET監視ワークフロー
-```
-[Cron Trigger: 毎時] 
-  → EDINET APIで新規開示をチェック
-  → ウォッチリストと照合
-  → マッチしたら「決算分析ワークフロー」を起動
-```
-
-### 2. 決算分析ワークフロー
-```
-[決算検知]
-  → EDINET から書類取得（PDF）
-  → PDFを画像化（各ページをPNG化）
-  → OpenAI Vision API で内容解析・サマリー生成
-  → 各ユーザーのカスタムプロンプトで追加分析
-  → D1に保存
-  → MailerSend で通知メール送信
+-- 銘柄マスタ
+CREATE TABLE stock_master (
+  code TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  market TEXT,
+  sector TEXT
+);
 ```
 
 ## API エンドポイント
 
 | Method | Path | 説明 |
 |--------|------|------|
-| GET | /api/auth/google | Google OAuth開始 |
-| GET | /api/auth/callback | OAuth コールバック |
-| GET | /api/auth/me | 現在のユーザー情報 |
-| POST | /api/auth/logout | ログアウト |
-| GET | /api/watchlist | ウォッチリスト取得 |
-| POST | /api/watchlist | 銘柄追加 |
-| DELETE | /api/watchlist/:id | 銘柄削除 |
-| PATCH | /api/watchlist/:id | 銘柄設定更新 |
-| GET | /api/earnings | 決算一覧 |
-| GET | /api/earnings/:id | 決算詳細 |
-| GET | /api/stocks/:code/earnings | 銘柄別決算履歴 |
-| GET | /api/earnings/:id/chat | チャット履歴取得 |
-| POST | /api/earnings/:id/chat | チャット送信 |
-| PATCH | /api/users/settings | ユーザー設定更新 |
+| GET | `/api/auth/google` | Google OAuth開始 |
+| GET | `/api/auth/callback` | OAuth コールバック |
+| GET | `/api/auth/me` | 現在のユーザー情報 |
+| POST | `/api/auth/login` | メール+パスワードログイン |
+| POST | `/api/auth/register` | メール+パスワード登録 |
+| POST | `/api/auth/logout` | ログアウト |
+| GET | `/api/watchlist` | ウォッチリスト取得 |
+| POST | `/api/watchlist` | 銘柄追加 |
+| DELETE | `/api/watchlist/:id` | 銘柄削除 |
+| PATCH | `/api/watchlist/:id` | 銘柄設定更新（カスタムプロンプト等） |
+| POST | `/api/watchlist/:id/import` | 過去決算インポート開始 |
+| POST | `/api/watchlist/:id/regenerate` | カスタム分析再生成 |
+| GET | `/api/earnings` | ダッシュボード用決算一覧 |
+| GET | `/api/earnings/:id` | 決算詳細 |
+| GET | `/api/earnings/:id/pdf/:docId` | PDF取得 |
+| GET | `/api/stocks/search` | 銘柄検索 |
+| GET | `/api/stocks/:code` | 銘柄別決算履歴 |
+| GET | `/api/chat/:releaseId` | チャット履歴取得 |
+| POST | `/api/chat/:releaseId` | チャット送信（SSE） |
 
 ## ディレクトリ構成
 
 ```
-stock-watcher/
+kessan-scope/
 ├── README.md
 ├── package.json
-├── tsconfig.json
-├── wrangler.toml              # Cloudflare Workers設定
-├── src/
-│   ├── index.ts               # Workerエントリポイント
-│   ├── routes/
-│   │   ├── auth.ts
-│   │   ├── watchlist.ts
-│   │   ├── earnings.ts
-│   │   └── chat.ts
-│   ├── workflows/
-│   │   ├── edinet-monitor.ts  # EDINET監視
-│   │   └── earnings-analyze.ts # 決算分析
-│   ├── services/
-│   │   ├── edinet.ts          # EDINET API クライアント
-│   │   ├── openai.ts          # OpenAI API クライアント (Vision APIでPDF解析も担当)
-│   │   └── mailersend.ts      # メール送信
-│   ├── db/
-│   │   ├── schema.sql
-│   │   └── queries.ts
-│   └── types/
-│       └── index.ts
+├── shared/                    # フロント・バックエンド共通の型定義
+│   └── src/
+│       └── index.ts           # Zodスキーマ・型定義
+├── backend/
+│   ├── wrangler.toml          # Cloudflare Workers設定
+│   ├── package.json
+│   ├── src/
+│   │   ├── index.ts           # Workerエントリポイント
+│   │   ├── constants.ts
+│   │   ├── types/
+│   │   │   └── index.ts
+│   │   ├── routes/
+│   │   │   ├── auth.ts        # 認証（OAuth/Email）
+│   │   │   ├── watchlist.ts   # ウォッチリスト管理
+│   │   │   ├── earnings.ts    # 決算データAPI
+│   │   │   ├── chat.ts        # チャットAPI（SSE）
+│   │   │   ├── stocks.ts      # 銘柄検索・詳細
+│   │   │   └── users.ts       # ユーザー設定
+│   │   ├── services/
+│   │   │   ├── tdnet.ts       # TDnet API クライアント
+│   │   │   ├── irbank.ts      # IRBANK スクレイピング
+│   │   │   ├── claude.ts      # Claude API クライアント
+│   │   │   ├── mailersend.ts  # メール送信
+│   │   │   ├── pdfStorage.ts  # R2 PDF管理
+│   │   │   ├── stockUpdater.ts        # 銘柄リスト更新
+│   │   │   ├── newReleasesChecker.ts  # TDnet新着チェック
+│   │   │   ├── historicalImport.ts    # 過去決算インポート
+│   │   │   ├── regenerateProcessor.ts # 再分析処理
+│   │   │   ├── earningsAnalyzer.ts    # 決算分析
+│   │   │   ├── documentClassifier.ts  # 資料タイプ分類
+│   │   │   └── documentSources.ts     # 資料URL解決
+│   │   └── db/
+│   │       ├── queries.ts
+│   │       ├── userQueries.ts
+│   │       ├── watchlistQueries.ts
+│   │       ├── earningsQueries.ts
+│   │       ├── releaseQueries.ts
+│   │       └── analysisQueries.ts
+│   ├── migrations/            # D1マイグレーション
+│   └── test/
 ├── frontend/
 │   ├── package.json
 │   ├── vite.config.ts
-│   ├── src/
-│   │   ├── App.tsx
-│   │   ├── pages/
-│   │   │   ├── Dashboard.tsx
-│   │   │   ├── Watchlist.tsx
-│   │   │   ├── EarningsDetail.tsx
-│   │   │   └── Settings.tsx
-│   │   ├── components/
-│   │   │   ├── Chat.tsx
-│   │   │   ├── EarningsSummary.tsx
-│   │   │   └── StockCard.tsx
-│   │   └── hooks/
-│   │       └── useApi.ts
-│   └── public/
+│   ├── index.html
+│   └── src/
+│       ├── main.tsx
+│       ├── App.tsx
+│       ├── App.css
+│       ├── api.ts             # APIクライアント
+│       ├── components/
+│       │   └── Layout.tsx
+│       └── pages/
+│           ├── Dashboard.tsx      # ダッシュボード
+│           ├── Watchlist.tsx      # ウォッチリスト管理
+│           ├── StockDetail.tsx    # 銘柄詳細
+│           ├── ReleaseDetail.tsx  # 決算詳細・チャット
+│           └── Settings.tsx       # 設定
 └── migrations/
-    └── 0001_initial.sql
 ```
 
-## 外部サービス設定
+## 環境設定
 
 ### 必要なAPIキー・認証情報
 
 | サービス | 必要な設定 |
 |----------|------------|
-| EDINET | APIキー（金融庁に申請） |
-| OpenAI | APIキー |
-| MailerSend | APIキー + ドメイン設定 |
+| Claude (Anthropic) | API Key |
+| MailerSend | API Key + 送信元メールアドレス |
 | Google OAuth | Client ID / Client Secret |
 
-### Cloudflare 設定
+### wrangler.toml
 
 ```toml
-# wrangler.toml
-name = "stock-watcher"
+name = "kessan-scope"
 main = "src/index.ts"
-compatibility_date = "2024-01-01"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
 
+# D1 Database
 [[d1_databases]]
 binding = "DB"
-database_name = "stock-watcher"
+database_name = "kessan-scope-db"
 database_id = "xxx"
 
-[vars]
-FRONTEND_URL = "https://stock-watcher.pages.dev"
+# R2 Bucket (PDF storage)
+[[r2_buckets]]
+binding = "PDF_BUCKET"
+bucket_name = "kessan-scope-pdfs"
 
-# Secrets (wrangler secret put で設定)
-# EDINET_API_KEY
-# OPENAI_API_KEY
-# MAILERSEND_API_KEY
-# GOOGLE_CLIENT_ID
-# GOOGLE_CLIENT_SECRET
-# JWT_SECRET
+[vars]
+FRONTEND_URL = "http://localhost:5173"
+
+# Cron Triggers
+[triggers]
+crons = ["0 0 * * *", "0 9 * * *"]  # 9:00 / 18:00 JST
+
+# Queues
+[[queues.producers]]
+queue = "kessan-scope-import"
+binding = "IMPORT_QUEUE"
+
+[[queues.consumers]]
+queue = "kessan-scope-import"
+max_batch_size = 1
+max_concurrency = 1
+
+# Production environment
+[env.production]
+vars = { FRONTEND_URL = "https://kessan-scope.fyi", ENVIRONMENT = "production" }
 ```
 
-## 開発ロードマップ
+### Secrets
 
-### Phase 1: 基盤構築
-- [x] プロジェクトセットアップ（Vitest + Cloudflare Workers）
-- [ ] D1 スキーマ作成・マイグレーション
-- [ ] Google OAuth 認証実装
-- [ ] 基本的なAPI実装
+```bash
+wrangler secret put ANTHROPIC_API_KEY
+wrangler secret put MAILERSEND_API_KEY
+wrangler secret put MAILERSEND_FROM_EMAIL
+wrangler secret put GOOGLE_CLIENT_ID
+wrangler secret put GOOGLE_CLIENT_SECRET
+wrangler secret put JWT_SECRET
+```
 
-### Phase 2: コア機能
-- [ ] EDINET API連携
-- [ ] 決算データ取得・解析
-- [ ] OpenAI連携（サマリー生成）
-- [ ] Cloudflare Workflows実装
+## 開発
 
-### Phase 3: ユーザー機能
-- [ ] React フロントエンド構築
-- [ ] ウォッチリスト管理UI
-- [ ] 決算詳細・履歴ページ
-- [ ] チャット機能
+```bash
+# 依存関係インストール
+npm install
 
-### Phase 4: 通知・仕上げ
-- [ ] MailerSend連携
-- [ ] メールテンプレート作成
-- [ ] エラーハンドリング強化
-- [ ] パフォーマンス最適化
+# 開発サーバー起動（フロント+バックエンド）
+npm run dev
 
-## 注意事項・検討事項
+# フロントエンドのみ
+npm run dev:frontend
 
-1. **EDINET API制限**: レート制限あり。適切な間隔でポーリングが必要
-2. **PDF解析**: OpenAI Vision APIを使用。PDFを画像化して解析するためトークン消費が大きい点に注意
-3. **LLMコスト**: トークン消費量の監視・ユーザーへの課金検討
-4. **Workflowsの制限**: 実行時間・メモリ制限の確認
+# バックエンドのみ
+npm run dev:backend
+
+# ビルド
+npm run build
+
+# テスト
+npm run test
+
+# デプロイ
+npm run deploy
+```
+
+## デプロイ
+
+### 1. Cloudflareリソース作成
+
+```bash
+wrangler d1 create kessan-scope-db
+wrangler r2 bucket create kessan-scope-pdfs
+wrangler queues create kessan-scope-import
+```
+
+### 2. マイグレーション実行
+
+```bash
+cd backend
+npm run db:migrate
+```
+
+### 3. Secrets設定
+
+```bash
+wrangler secret put ANTHROPIC_API_KEY --env production
+wrangler secret put MAILERSEND_API_KEY --env production
+wrangler secret put MAILERSEND_FROM_EMAIL --env production
+wrangler secret put GOOGLE_CLIENT_ID --env production
+wrangler secret put GOOGLE_CLIENT_SECRET --env production
+wrangler secret put JWT_SECRET --env production
+```
+
+### 4. デプロイ
+
+```bash
+# バックエンド
+wrangler deploy --env production
+
+# フロントエンド（Cloudflare Pages）
+npm run build
+# Pagesにdist/をデプロイ
+```
+
 ## 参考リンク
-- [EDINET API](https://disclosure.edinet-fsa.go.jp/)
+
+- [TDnet 適時開示情報](https://www.jpx.co.jp/markets/statistics-equities/misc/04.html)
 - [Cloudflare Workers](https://developers.cloudflare.com/workers/)
 - [Cloudflare D1](https://developers.cloudflare.com/d1/)
-- [Cloudflare Workflows](https://developers.cloudflare.com/workflows/)
+- [Cloudflare R2](https://developers.cloudflare.com/r2/)
+- [Cloudflare Queues](https://developers.cloudflare.com/queues/)
+- [Claude API](https://docs.anthropic.com/)
 - [MailerSend](https://www.mailersend.com/)

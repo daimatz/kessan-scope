@@ -35,8 +35,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <span className="hamburger-icon">{menuOpen ? '✕' : '☰'}</span>
         </button>
         <Link to="/" className="topbar-logo">
-          <span className="logo-icon">📈</span>
-          <span className="logo-text">Stock Watcher</span>
+          <span className="logo-icon">🔍</span>
+          <span className="logo-text">Kessan Scope</span>
         </Link>
       </header>
 

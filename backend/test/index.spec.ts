@@ -2,7 +2,7 @@ import { env, createExecutionContext, waitOnExecutionContext, SELF } from 'cloud
 import { describe, it, expect } from 'vitest';
 import app from '../src/index';
 
-describe('Stock Watcher API', () => {
+describe('Kessan Scope API', () => {
   it('responds to health check', async () => {
     const response = await SELF.fetch('http://localhost/health');
     expect(response.status).toBe(200);

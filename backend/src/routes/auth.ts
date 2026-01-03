@@ -3,7 +3,7 @@ import { setCookie, getCookie, deleteCookie } from 'hono/cookie';
 import type { Env, GoogleUserInfo, JWTPayload } from '../types';
 import { getUserByGoogleId, createUser, getUserById, getUserByEmail, createUserWithPassword, verifyPassword, setUserPassword, linkGoogleAccount, verifyEmailToken, regenerateVerificationToken, deleteUser } from '../db/queries';
 import { MailerSendClient } from '../services/mailersend';
-import { UserSchema } from '@stock-watcher/shared';
+import { UserSchema } from '@kessan-scope/shared';
 
 const auth = new Hono<{ Bindings: Env }>();
 

@@ -19,7 +19,7 @@ import {
   parseCustomAnalysis,
   getDocumentTypeLabel,
   getReleaseTypeLabel,
-} from '@stock-watcher/shared';
+} from '@kessan-scope/shared';
 
 // 型を re-export
 export type {

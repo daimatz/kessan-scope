@@ -19,7 +19,7 @@ export class MailerSendClient {
   private fromEmail: string;
   private fromName: string;
 
-  constructor(apiKey: string, fromEmail: string, fromName: string = 'Stock Watcher') {
+  constructor(apiKey: string, fromEmail: string, fromName: string = 'Kessan Scope') {
     this.apiKey = apiKey;
     this.fromEmail = fromEmail;
     this.fromName = fromName;
@@ -107,7 +107,7 @@ export class MailerSendClient {
       <a href="${options.detailUrl}" class="button">詳細を見る →</a>
     </div>
     <div class="footer">
-      <p>Stock Watcher - 株式ウォッチャー</p>
+      <p>Kessan Scope</p>
       <p>このメールはウォッチリストに基づいて自動送信されています。</p>
     </div>
   </div>
@@ -161,7 +161,7 @@ ${options.lowlights.map(l => `- ${l}`).join('\n')}
       <h1 style="margin: 0;">📧 メールアドレスの確認</h1>
     </div>
     <div class="content">
-      <p>Stock Watcher へのご登録ありがとうございます。</p>
+      <p>Kessan Scope へのご登録ありがとうございます。</p>
       <p>以下のボタンをクリックして、メールアドレスを確認してください。</p>
       <a href="${options.verificationUrl}" class="button">メールアドレスを確認する →</a>
       <p class="note">ボタンが機能しない場合は、以下のURLをブラウザに貼り付けてください：</p>
@@ -169,7 +169,7 @@ ${options.lowlights.map(l => `- ${l}`).join('\n')}
       <p class="note">このリンクは24時間有効です。<br>心当たりがない場合は、このメールを無視してください。</p>
     </div>
     <div class="footer">
-      <p>Stock Watcher - 株式ウォッチャー</p>
+      <p>Kessan Scope</p>
     </div>
   </div>
 </body>
@@ -177,7 +177,7 @@ ${options.lowlights.map(l => `- ${l}`).join('\n')}
 `;
 
     const text = `
-Stock Watcher へのご登録ありがとうございます。
+Kessan Scope へのご登録ありがとうございます。
 
 以下のリンクをクリックして、メールアドレスを確認してください：
 ${options.verificationUrl}
@@ -188,7 +188,7 @@ ${options.verificationUrl}
 
     await this.sendEmail({
       to: [options.to],
-      subject: '[Stock Watcher] メールアドレスの確認',
+      subject: '[Kessan Scope] メールアドレスの確認',
       html,
       text,
     });
@@ -247,7 +247,7 @@ ${options.verificationUrl}
       <a href="${options.dashboardUrl}" class="button">ダッシュボードを開く →</a>
     </div>
     <div class="footer">
-      <p>Stock Watcher - 株式ウォッチャー</p>
+      <p>Kessan Scope</p>
     </div>
   </div>
 </body>
@@ -267,7 +267,7 @@ ${options.verificationUrl}
 
     await this.sendEmail({
       to: [options.to],
-      subject: `[Stock Watcher] ${displayName} のインポートが完了しました`,
+      subject: `[Kessan Scope] ${displayName} のインポートが完了しました`,
       html,
       text,
     });
@@ -336,7 +336,7 @@ ${options.verificationUrl}
       <a href="${options.dashboardUrl}" class="button">ダッシュボードを開く →</a>
     </div>
     <div class="footer">
-      <p>Stock Watcher - 株式ウォッチャー</p>
+      <p>Kessan Scope</p>
     </div>
   </div>
 </body>
@@ -358,7 +358,7 @@ ${options.verificationUrl}
 
     await this.sendEmail({
       to: [options.to],
-      subject: `[Stock Watcher] ${displayName} の再分析が完了しました`,
+      subject: `[Kessan Scope] ${displayName} の再分析が完了しました`,
       html,
       text,
     });

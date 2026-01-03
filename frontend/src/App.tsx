@@ -112,7 +112,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     return (
       <div className="login-container">
         <div className="login-card">
-          <h1>📈 Stock Watcher</h1>
+          <h1>🔍 Kessan Scope</h1>
           <p className="login-description">日本株の決算を自動でウォッチし、LLMで分析</p>
           
           <div className="auth-tabs">

@@ -9,7 +9,7 @@ import {
   getWatchlistItemById,
 } from '../db/queries';
 import { enqueueHistoricalImport } from '../services/historicalImport';
-import { WatchlistItemSchema } from '@stock-watcher/shared';
+import { WatchlistItemSchema } from '@kessan-scope/shared';
 
 const watchlist = new Hono<{ Bindings: Env; Variables: { userId: string } }>();
 
