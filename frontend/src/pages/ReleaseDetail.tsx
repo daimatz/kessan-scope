@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import ReactMarkdown from 'react-markdown';
-import { earningsAPI, chatAPI, getDocumentTypeLabel } from '../api';
+import { earningsAPI, chatAPI, getDocumentTypeLabel, parseCustomAnalysis } from '../api';
 import type { DocumentType } from '../api';
 
 export default function ReleaseDetail() {
@@ -13,8 +13,8 @@ export default function ReleaseDetail() {
   const [showPdf, setShowPdf] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
-  // 'standard' または履歴のインデックス番号
-  const [selectedAnalysis, setSelectedAnalysis] = useState<'standard' | number>('standard');
+  // 'standard', 'current'（現在のカスタム分析）, または履歴のインデックス番号
+  const [selectedAnalysis, setSelectedAnalysis] = useState<'standard' | 'current' | number>('standard');
   const chatMessagesRef = useRef<HTMLDivElement>(null);
 
   const { data, isLoading, error } = useQuery({
@@ -108,7 +108,7 @@ export default function ReleaseDetail() {
     );
   }
 
-  const { release, customAnalysis, analysisHistory, prevRelease, nextRelease } = data;
+  const { release, customAnalysis, customPromptUsed, analysisHistory, prevRelease, nextRelease } = data;
   const messages = chatData?.messages || [];
   const periodLabel = release.fiscal_quarter
     ? `${release.fiscal_year}年 Q${release.fiscal_quarter}`
@@ -239,7 +239,7 @@ export default function ReleaseDetail() {
                 )}
               </nav>
 
-              {/* 分析軸セレクター（標準 + カスタム全部） */}
+              {/* 分析軸セレクター（標準 + 現在のカスタム + 履歴全部） */}
               <div className="prompt-selector">
                 <span className="prompt-selector-label">分析軸:</span>
                 <div className="prompt-buttons">
@@ -249,6 +249,15 @@ export default function ReleaseDetail() {
                       onClick={() => setSelectedAnalysis('standard')}
                     >
                       標準
+                    </button>
+                  )}
+                  {customAnalysis && customPromptUsed && (
+                    <button
+                      className={`prompt-button ${selectedAnalysis === 'current' ? 'active' : ''}`}
+                      onClick={() => setSelectedAnalysis('current')}
+                      title={customPromptUsed}
+                    >
+                      {customPromptUsed.length > 15 ? `${customPromptUsed.substring(0, 15)}...` : customPromptUsed}
                     </button>
                   )}
                   {analysisHistory.map((item, index) => (
@@ -319,19 +328,105 @@ export default function ReleaseDetail() {
                 </div>
               )}
 
-              {/* カスタム分析 */}
-              {typeof selectedAnalysis === 'number' && analysisHistory[selectedAnalysis] && (
+              {/* 現在のカスタム分析 */}
+              {selectedAnalysis === 'current' && customAnalysis && (
                 <div className="tab-content">
-                  <div className="analysis-meta">
-                    <span className="analysis-date">
-                      {new Date(analysisHistory[selectedAnalysis].created_at).toLocaleString('ja-JP')}
-                    </span>
+                  <h2>概要</h2>
+                  <p className="overview">{customAnalysis.overview}</p>
+
+                  <div className="highlights-grid">
+                    <div className="highlight-section">
+                      <h3>ハイライト</h3>
+                      {customAnalysis.highlights.length > 0 ? (
+                        <ul className="highlight-list positive">
+                          {customAnalysis.highlights.map((h, i) => (
+                            <li key={i}>{h}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="empty">情報なし</p>
+                      )}
+                    </div>
+
+                    <div className="highlight-section">
+                      <h3>ローライト</h3>
+                      {customAnalysis.lowlights.length > 0 ? (
+                        <ul className="highlight-list negative">
+                          {customAnalysis.lowlights.map((l, i) => (
+                            <li key={i}>{l}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="empty">情報なし</p>
+                      )}
+                    </div>
                   </div>
-                  <div className="custom-analysis">
-                    {analysisHistory[selectedAnalysis].analysis}
-                  </div>
+
+                  {customAnalysis.analysis && (
+                    <div className="custom-analysis">
+                      <h3>詳細分析</h3>
+                      <ReactMarkdown>{customAnalysis.analysis}</ReactMarkdown>
+                    </div>
+                  )}
                 </div>
               )}
+
+              {/* 履歴のカスタム分析 */}
+              {typeof selectedAnalysis === 'number' && analysisHistory[selectedAnalysis] && (() => {
+                const historyItem = analysisHistory[selectedAnalysis];
+                const parsed = parseCustomAnalysis(historyItem.analysis);
+                return (
+                  <div className="tab-content">
+                    <div className="analysis-meta">
+                      <span className="analysis-date">
+                        {new Date(historyItem.created_at).toLocaleString('ja-JP')}
+                      </span>
+                    </div>
+
+                    {parsed && (
+                      <>
+                        <h2>概要</h2>
+                        <p className="overview">{parsed.overview}</p>
+
+                        <div className="highlights-grid">
+                          <div className="highlight-section">
+                            <h3>ハイライト</h3>
+                            {parsed.highlights.length > 0 ? (
+                              <ul className="highlight-list positive">
+                                {parsed.highlights.map((h, i) => (
+                                  <li key={i}>{h}</li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p className="empty">情報なし</p>
+                            )}
+                          </div>
+
+                          <div className="highlight-section">
+                            <h3>ローライト</h3>
+                            {parsed.lowlights.length > 0 ? (
+                              <ul className="highlight-list negative">
+                                {parsed.lowlights.map((l, i) => (
+                                  <li key={i}>{l}</li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p className="empty">情報なし</p>
+                            )}
+                          </div>
+                        </div>
+
+                        {parsed.analysis && (
+                          <div className="custom-analysis">
+                            <h3>詳細分析</h3>
+                            <ReactMarkdown>{parsed.analysis}</ReactMarkdown>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
             </section>
           )}
         </div>
