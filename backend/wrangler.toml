@@ -1,36 +1,32 @@
+# ==============================================================================
+# 共通設定（全環境で継承される）
+# ==============================================================================
 name = "kessan-scope"
 main = "src/index.ts"
 compatibility_date = "2024-12-01"
 compatibility_flags = ["nodejs_compat"]
 
-# D1 Database
+# Cron Triggers（本番のみで実行される）
+[triggers]
+crons = ["0 0 * * *", "0 9 * * *"]  # 09:00 JST, 18:00 JST
+
+# ==============================================================================
+# ローカル開発用（wrangler dev で使用）
+# ⚠️  wrangler deploy（--env なし）は実行禁止。npm run deploy:production を使うこと。
+# ==============================================================================
+
+[vars]
+FRONTEND_URL = "http://localhost:5173"
+
 [[d1_databases]]
 binding = "DB"
 database_name = "kessan-scope-db"
-database_id = "placeholder" # wrangler d1 create で取得後に更新
+database_id = "placeholder"  # ローカルは SQLite エミュレーション
 
-# R2 Bucket (PDF storage)
 [[r2_buckets]]
 binding = "PDF_BUCKET"
 bucket_name = "kessan-scope-pdfs"
 
-[vars]
-FRONTEND_URL = "http://localhost:5173"
-# ENVIRONMENT = "production"  # 本番デプロイ時に設定（/internal/* を無効化）
-
-# Secrets (wrangler secret put で設定)
-# ANTHROPIC_API_KEY
-# OPENAI_API_KEY
-# MAILERSEND_API_KEY
-# GOOGLE_CLIENT_ID
-# GOOGLE_CLIENT_SECRET
-# JWT_SECRET
-
-# Cron Triggers
-[triggers]
-crons = ["0 0 * * *", "0 9 * * *"]  # 9:00 JST と 18:00 JST に銘柄リスト更新 & 新着チェック
-
-# Queues
 [[queues.producers]]
 queue = "kessan-scope-import"
 binding = "IMPORT_QUEUE"
@@ -41,6 +37,34 @@ max_batch_size = 1
 max_concurrency = 1
 max_retries = 3
 
-# Production environment
-[env.production]
-vars = { FRONTEND_URL = "https://kessan-scope.fyi", ENVIRONMENT = "production" }
+# Secrets（.dev.vars に記載）
+# ANTHROPIC_API_KEY, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET,
+# JWT_SECRET, MAILERSEND_API_KEY, MAILERSEND_FROM_EMAIL
+
+# ==============================================================================
+# 本番環境（wrangler deploy --env=production で使用）
+# Secrets は wrangler secret put XXX --env=production で設定
+# ==============================================================================
+
+[env.production.vars]
+FRONTEND_URL = "https://kessan-scope.fyi"
+ENVIRONMENT = "production"
+
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "kessan-scope-db"
+database_id = "3919f68c-cd3d-475d-a00a-a14fb3ea0003"
+
+[[env.production.r2_buckets]]
+binding = "PDF_BUCKET"
+bucket_name = "kessan-scope-pdfs"
+
+[[env.production.queues.producers]]
+queue = "kessan-scope-import"
+binding = "IMPORT_QUEUE"
+
+[[env.production.queues.consumers]]
+queue = "kessan-scope-import"
+max_batch_size = 1
+max_concurrency = 1
+max_retries = 3

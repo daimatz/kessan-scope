@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
+    "deploy": "echo 'Use: npm run deploy:production' && exit 1",
+    "deploy:production": "wrangler deploy --env=production",
     "test": "vitest",
     "test:run": "vitest run",
     "typecheck": "vitest --typecheck --run",
