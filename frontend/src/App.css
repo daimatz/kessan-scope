@@ -44,19 +44,13 @@ a:hover {
   text-decoration: underline;
 }
 
+/* ボタン基本リセット */
 button {
   cursor: pointer;
-  padding: 8px 16px;
   border: none;
   border-radius: 6px;
-  background: var(--primary);
-  color: white;
   font-size: 14px;
-  transition: background 0.2s;
-}
-
-button:hover:not(:disabled) {
-  background: var(--primary-dark);
+  transition: all 0.2s;
 }
 
 button:disabled {
@@ -64,7 +58,32 @@ button:disabled {
   cursor: not-allowed;
 }
 
+/* 青背景ボタン共通スタイル */
+.btn-primary,
+button:not([class]),
+.document-tab.active,
+.prompt-button.active {
+  background: var(--primary);
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled),
+button:not([class]):hover:not(:disabled),
+.document-tab.active:hover:not(:disabled),
+.prompt-button.active:hover:not(:disabled) {
+  background: #3b5fc7;
+  color: white;
+}
+
+/* デフォルトボタンのpadding */
+.btn-primary,
+button:not([class]) {
+  padding: 8px 16px;
+}
+
+/* セカンダリボタン */
 button.secondary {
+  padding: 8px 16px;
   background: var(--gray-200);
   color: var(--gray-700);
 }
@@ -1228,19 +1247,20 @@ input:focus, textarea:focus, select:focus {
   background: white;
   color: var(--gray-600);
   border: 1px solid var(--gray-300);
-  cursor: pointer;
-  transition: all 0.2s;
 }
 
-.prompt-button:hover {
+.prompt-button:hover:not(:disabled) {
   background: var(--gray-100);
   border-color: var(--gray-400);
+  color: var(--gray-800);
 }
 
 .prompt-button.active {
-  background: var(--primary);
-  color: white;
   border-color: var(--primary);
+}
+
+.prompt-button.active:hover:not(:disabled) {
+  border-color: #3b5fc7;
 }
 
 /* Custom Analysis Content */
@@ -1715,6 +1735,35 @@ input:focus, textarea:focus, select:focus {
     gap: 8px;
   }
 
+  /* PDF Section Mobile */
+  .pdf-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .document-tabs {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 4px;
+  }
+
+  .document-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .document-tab {
+    padding: 6px 12px;
+    font-size: 13px;
+    flex-shrink: 0;
+  }
+
+  .pdf-actions {
+    justify-content: flex-end;
+  }
+
   .timeline-nav {
     gap: 8px;
     padding: 12px;
@@ -2153,16 +2202,24 @@ input:focus, textarea:focus, select:focus {
   font-size: 13px;
   padding: 8px 16px;
   border: 1px solid var(--gray-300);
-  border-radius: 6px;
   background: white;
   color: var(--gray-700);
-  cursor: pointer;
-  transition: all 0.2s;
 }
 
-.toggle-btn:hover {
-  border-color: var(--primary);
-  color: var(--primary);
+.toggle-btn:hover:not(:disabled) {
+  background: var(--gray-100);
+  border-color: var(--gray-400);
+  color: var(--gray-800);
+}
+
+.toggle-btn.active {
+  background: var(--gray-200);
+  border-color: var(--gray-400);
+  color: var(--gray-800);
+}
+
+.toggle-btn.active:hover:not(:disabled) {
+  background: var(--gray-300);
 }
 
 .download-link {
@@ -2220,23 +2277,23 @@ input:focus, textarea:focus, select:focus {
   padding: 8px 16px;
   font-size: 14px;
   border: 1px solid var(--gray-300);
-  border-radius: 6px;
   background: white;
   color: var(--gray-700);
-  cursor: pointer;
-  transition: background 0.2s, border-color 0.2s, color 0.2s;
   white-space: nowrap;
 }
 
-.document-tab:hover {
-  border-color: var(--primary);
-  color: var(--primary);
+.document-tab:hover:not(:disabled) {
+  background: var(--gray-100);
+  border-color: var(--gray-400);
+  color: var(--gray-800);
 }
 
 .document-tab.active {
-  background: var(--primary);
   border-color: var(--primary);
-  color: white;
+}
+
+.document-tab.active:hover:not(:disabled) {
+  border-color: #3b5fc7;
 }
 
 /* Selected Document Info */

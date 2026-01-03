@@ -210,7 +210,7 @@ export default function ReleaseDetail() {
                   )}
                   <button
                     onClick={() => setShowPdf(!showPdf)}
-                    className="toggle-btn"
+                    className={`toggle-btn ${showPdf ? 'active' : ''}`}
                   >
                     {showPdf ? '閉じる' : '開く'}
                   </button>
