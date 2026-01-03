@@ -1,7 +1,8 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { earningsAPI, chatAPI, getDocumentTypeLabel, parseCustomAnalysis } from '../api';
 import type { DocumentType } from '../api';
 
@@ -16,6 +17,20 @@ export default function ReleaseDetail() {
   // 'standard', 'current'（現在のカスタム分析）, または履歴のインデックス番号
   const [selectedAnalysis, setSelectedAnalysis] = useState<'standard' | 'current' | number>('standard');
   const chatMessagesRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // テキストエリアの高さを自動調整（最大3行）
+  const adjustTextareaHeight = useCallback(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    // 一度リセットしてから高さを計算
+    textarea.style.height = 'auto';
+    const lineHeight = 24; // 1行の高さ（CSSと合わせる）
+    const maxHeight = lineHeight * 3 + 20; // 3行 + padding
+    const newHeight = Math.min(textarea.scrollHeight, maxHeight);
+    textarea.style.height = `${newHeight}px`;
+  }, []);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['release', releaseId],
@@ -49,6 +64,10 @@ export default function ReleaseDetail() {
 
     const userMessage = message;
     setMessage('');
+    // テキストエリアの高さをリセット
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+    }
     setIsStreaming(true);
     setStreamingContent('');
 
@@ -365,7 +384,7 @@ export default function ReleaseDetail() {
                   {customAnalysis.analysis && (
                     <div className="custom-analysis">
                       <h3>詳細分析</h3>
-                      <ReactMarkdown>{customAnalysis.analysis}</ReactMarkdown>
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{customAnalysis.analysis}</ReactMarkdown>
                     </div>
                   )}
                 </div>
@@ -419,7 +438,7 @@ export default function ReleaseDetail() {
                         {parsed.analysis && (
                           <div className="custom-analysis">
                             <h3>詳細分析</h3>
-                            <ReactMarkdown>{parsed.analysis}</ReactMarkdown>
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{parsed.analysis}</ReactMarkdown>
                           </div>
                         )}
                       </>
@@ -448,7 +467,7 @@ export default function ReleaseDetail() {
                         </div>
                         <div className="message-content">
                           {msg.role === 'assistant' ? (
-                            <ReactMarkdown>{msg.content}</ReactMarkdown>
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
                           ) : (
                             msg.content
                           )}
@@ -460,7 +479,7 @@ export default function ReleaseDetail() {
                         <div className="message-role">AI</div>
                         <div className="message-content">
                           {streamingContent ? (
-                            <ReactMarkdown>{streamingContent}</ReactMarkdown>
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamingContent}</ReactMarkdown>
                           ) : (
                             <span className="loading-dots">考え中...</span>
                           )}
@@ -471,12 +490,23 @@ export default function ReleaseDetail() {
                 )}
               </div>
               <form onSubmit={handleSend} className="chat-form">
-                <input
-                  type="text"
+                <textarea
+                  ref={textareaRef}
                   placeholder="決算について質問..."
                   value={message}
-                  onChange={(e) => setMessage(e.target.value)}
+                  onChange={(e) => {
+                    setMessage(e.target.value);
+                    adjustTextareaHeight();
+                  }}
+                  onKeyDown={(e) => {
+                    // Ctrl+Enter or Cmd+Enter で送信
+                    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                      e.preventDefault();
+                      handleSend(e);
+                    }
+                  }}
                   disabled={isStreaming}
+                  rows={1}
                 />
                 <button type="submit" disabled={isStreaming || !message.trim()}>
                   送信
