@@ -235,6 +235,77 @@ export async function getCustomAnalysisHistoryForRelease(
   return result.results;
 }
 
+// ========================================
+// バッチクエリ（N+1問題対策）
+// ========================================
+
+// 複数リリースのドキュメントを一括取得
+export async function getDocumentsForReleases(
+  db: D1Database,
+  releaseIds: string[]
+): Promise<Map<string, Earnings[]>> {
+  if (releaseIds.length === 0) return new Map();
+
+  const placeholders = releaseIds.map(() => '?').join(',');
+  const result = await db.prepare(`
+    SELECT * FROM earnings
+    WHERE release_id IN (${placeholders})
+    ORDER BY release_id, document_type ASC
+  `).bind(...releaseIds).all<Earnings>();
+
+  const map = new Map<string, Earnings[]>();
+  for (const doc of result.results) {
+    const existing = map.get(doc.release_id) || [];
+    existing.push(doc);
+    map.set(doc.release_id, existing);
+  }
+  return map;
+}
+
+// 複数リリースのユーザー分析を一括取得
+export async function getUserAnalysesForReleases(
+  db: D1Database,
+  userId: string,
+  releaseIds: string[]
+): Promise<Map<string, UserReleaseAnalysis>> {
+  if (releaseIds.length === 0) return new Map();
+
+  const placeholders = releaseIds.map(() => '?').join(',');
+  const result = await db.prepare(`
+    SELECT * FROM user_release_analysis
+    WHERE user_id = ? AND release_id IN (${placeholders})
+  `).bind(userId, ...releaseIds).all<UserReleaseAnalysis>();
+
+  const map = new Map<string, UserReleaseAnalysis>();
+  for (const analysis of result.results) {
+    map.set(analysis.release_id, analysis);
+  }
+  return map;
+}
+
+// 複数リリースの分析履歴件数を一括取得
+export async function getAnalysisHistoryCountsForReleases(
+  db: D1Database,
+  userId: string,
+  releaseIds: string[]
+): Promise<Map<string, number>> {
+  if (releaseIds.length === 0) return new Map();
+
+  const placeholders = releaseIds.map(() => '?').join(',');
+  const result = await db.prepare(`
+    SELECT release_id, COUNT(*) as count
+    FROM release_analysis_history
+    WHERE user_id = ? AND release_id IN (${placeholders})
+    GROUP BY release_id
+  `).bind(userId, ...releaseIds).all<{ release_id: string; count: number }>();
+
+  const map = new Map<string, number>();
+  for (const row of result.results) {
+    map.set(row.release_id, row.count);
+  }
+  return map;
+}
+
 // リリース用のキャッシュ済み分析を検索
 export async function findCachedAnalysisForRelease(
   db: D1Database,

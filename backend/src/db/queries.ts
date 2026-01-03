@@ -60,6 +60,10 @@ export {
   saveCustomAnalysisForRelease,
   getCustomAnalysisHistoryForRelease,
   findCachedAnalysisForRelease,
+  // バッチクエリ
+  getDocumentsForReleases,
+  getUserAnalysesForReleases,
+  getAnalysisHistoryCountsForReleases,
 } from './releaseQueries';
 
 // チャット関連

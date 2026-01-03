@@ -13,6 +13,10 @@ import {
   getUserAnalysisByRelease,
   getCustomAnalysisHistoryForRelease,
   getReleasesForDashboard,
+  // バッチクエリ
+  getDocumentsForReleases,
+  getUserAnalysesForReleases,
+  getAnalysisHistoryCountsForReleases,
 } from '../db/queries';
 
 const earnings = new Hono<{ Bindings: Env; Variables: { userId: string } }>();
@@ -24,30 +28,35 @@ earnings.get('/releases', async (c) => {
   // ユーザーのウォッチリストにある銘柄のリリースを取得
   const releases = await getReleasesForDashboard(c.env.DB, userId);
 
-  // 各リリースのドキュメント数とユーザー分析を取得
-  const releasesWithDocs = await Promise.all(
-    releases.map(async (r) => {
-      const documents = await getDocumentsForRelease(c.env.DB, r.id);
-      const userAnalysis = await getUserAnalysisByRelease(c.env.DB, userId, r.id);
+  // バッチクエリでドキュメントとユーザー分析を一括取得
+  const releaseIds = releases.map(r => r.id);
+  const [documentsMap, analysesMap] = await Promise.all([
+    getDocumentsForReleases(c.env.DB, releaseIds),
+    getUserAnalysesForReleases(c.env.DB, userId, releaseIds),
+  ]);
 
-      return {
-        id: r.id,
-        release_type: r.release_type,
-        stock_code: r.stock_code,
-        stock_name: r.stock_name,
-        fiscal_year: r.fiscal_year,
-        fiscal_quarter: r.fiscal_quarter,
-        has_summary: !!r.summary,
-        has_custom_analysis: !!userAnalysis?.custom_analysis,
-        notified_at: userAnalysis?.notified_at ?? null,
-        document_count: documents.length,
-        documents: documents.map(d => ({
-          id: d.id,
-          document_type: d.document_type,
-        })),
-      };
-    })
-  );
+  // レスポンスを構築
+  const releasesWithDocs = releases.map((r) => {
+    const documents = documentsMap.get(r.id) || [];
+    const userAnalysis = analysesMap.get(r.id);
+
+    return {
+      id: r.id,
+      release_type: r.release_type,
+      stock_code: r.stock_code,
+      stock_name: r.stock_name,
+      fiscal_year: r.fiscal_year,
+      fiscal_quarter: r.fiscal_quarter,
+      has_summary: !!r.summary,
+      has_custom_analysis: !!userAnalysis?.custom_analysis,
+      notified_at: userAnalysis?.notified_at ?? null,
+      document_count: documents.length,
+      documents: documents.map(d => ({
+        id: d.id,
+        document_type: d.document_type,
+      })),
+    };
+  });
 
   // zod で API レスポンス用にフィルタリング
   return c.json({ releases: releasesWithDocs.map(r => DashboardReleaseSchema.parse(r)) });
@@ -69,31 +78,37 @@ earnings.get('/releases/stock/:code', async (c) => {
   // リリース一覧を取得
   const releasesList = await getEarningsReleasesByStockCode(c.env.DB, code);
 
-  // 各リリースのユーザー分析情報とドキュメント数を取得
-  const releasesWithInfo = await Promise.all(
-    releasesList.map(async (r) => {
-      const userAnalysis = await getUserAnalysisByRelease(c.env.DB, userId, r.id);
-      const documents = await getDocumentsForRelease(c.env.DB, r.id);
-      const historyCount = (await getCustomAnalysisHistoryForRelease(c.env.DB, userId, r.id)).length;
+  // バッチクエリでドキュメント、ユーザー分析、履歴件数を一括取得
+  const releaseIds = releasesList.map(r => r.id);
+  const [documentsMap, analysesMap, historyCountsMap] = await Promise.all([
+    getDocumentsForReleases(c.env.DB, releaseIds),
+    getUserAnalysesForReleases(c.env.DB, userId, releaseIds),
+    getAnalysisHistoryCountsForReleases(c.env.DB, userId, releaseIds),
+  ]);
 
-      return {
-        id: r.id,
-        release_type: r.release_type,
-        fiscal_year: r.fiscal_year,
-        fiscal_quarter: r.fiscal_quarter,
-        has_summary: !!r.summary,
-        has_custom_analysis: !!userAnalysis?.custom_analysis,
-        analysis_history_count: historyCount,
-        document_count: documents.length,
-        documents: documents.map(d => ({
-          id: d.id,
-          document_type: d.document_type,
-          document_title: d.document_title,
-          has_pdf: !!d.r2_key,
-        })),
-      };
-    })
-  );
+  // レスポンスを構築
+  const releasesWithInfo = releasesList.map((r) => {
+    const documents = documentsMap.get(r.id) || [];
+    const userAnalysis = analysesMap.get(r.id);
+    const historyCount = historyCountsMap.get(r.id) || 0;
+
+    return {
+      id: r.id,
+      release_type: r.release_type,
+      fiscal_year: r.fiscal_year,
+      fiscal_quarter: r.fiscal_quarter,
+      has_summary: !!r.summary,
+      has_custom_analysis: !!userAnalysis?.custom_analysis,
+      analysis_history_count: historyCount,
+      document_count: documents.length,
+      documents: documents.map(d => ({
+        id: d.id,
+        document_type: d.document_type,
+        document_title: d.document_title,
+        has_pdf: !!d.r2_key,
+      })),
+    };
+  });
 
   // zod で API レスポンス用にフィルタリング
   return c.json(StockReleasesResponseSchema.parse({
