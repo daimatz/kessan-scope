@@ -255,6 +255,7 @@ export async function getDocumentsForReleases(
 
   const map = new Map<string, Earnings[]>();
   for (const doc of result.results) {
+    if (!doc.release_id) continue;
     const existing = map.get(doc.release_id) || [];
     existing.push(doc);
     map.set(doc.release_id, existing);

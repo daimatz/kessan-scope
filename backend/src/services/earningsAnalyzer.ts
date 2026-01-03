@@ -68,6 +68,65 @@ const DOCUMENT_TYPE_PRIORITY: DocumentType[] = [
   'growth_potential',       // 成長可能性資料
 ];
 
+// リリースからPDFドキュメントを取得するヘルパー
+async function getPdfDocumentsForRelease(
+  env: Env,
+  releaseId: string
+): Promise<Array<{ buffer: ArrayBuffer; type: DocumentType }>> {
+  // リリースに紐づくドキュメントを取得
+  const documents = await getDocumentsForRelease(env.DB, releaseId);
+  if (documents.length === 0) {
+    return [];
+  }
+
+  // ドキュメントタイプの優先順位でソート
+  const sortedDocs = [...documents].sort((a, b) => {
+    const priorityA = DOCUMENT_TYPE_PRIORITY.indexOf(a.document_type as DocumentType);
+    const priorityB = DOCUMENT_TYPE_PRIORITY.indexOf(b.document_type as DocumentType);
+    // 優先順位リストにない場合は後ろに
+    const effectiveA = priorityA === -1 ? 999 : priorityA;
+    const effectiveB = priorityB === -1 ? 999 : priorityB;
+    return effectiveA - effectiveB;
+  });
+
+  // 最大PDF数まで取得（コスト考慮）
+  const targetDocs = sortedDocs.slice(0, MAX_PDFS_PER_ANALYSIS);
+
+  // PDFを取得（並列）- r2_keyがあるドキュメントのみ
+  const docsWithR2Key = targetDocs.filter((doc) => doc.r2_key !== null);
+  const pdfResults = await Promise.all(
+    docsWithR2Key.map(async (doc) => {
+      try {
+        const pdfBuffer = await getPdfFromR2(env.PDF_BUCKET, doc.r2_key!);
+        if (!pdfBuffer) {
+          console.error(`PDF not found in R2: ${doc.r2_key}`);
+          return null;
+        }
+
+        // サイズチェック
+        if (pdfBuffer.byteLength > MAX_PDF_SIZE) {
+          console.log(`PDF too large (${(pdfBuffer.byteLength / 1024 / 1024).toFixed(1)}MB), skipping: ${doc.r2_key}`);
+          return null;
+        }
+
+        // ページ数制限
+        const truncatedBuffer = await truncatePdfIfNeeded(pdfBuffer);
+
+        return {
+          buffer: truncatedBuffer,
+          type: doc.document_type as DocumentType,
+        };
+      } catch (error) {
+        console.error(`Failed to fetch PDF ${doc.r2_key}:`, error);
+        return null;
+      }
+    })
+  );
+
+  // null を除外
+  return pdfResults.filter((r): r is { buffer: ArrayBuffer; type: DocumentType } => r !== null);
+}
+
 // EarningsRelease に対して分析を実行（複数PDF対応）
 export async function analyzeEarningsRelease(
   env: Env,
@@ -79,52 +138,8 @@ export async function analyzeEarningsRelease(
     return null;
   }
 
-  // リリースに紐づくドキュメントを取得
-  const documents = await getDocumentsForRelease(env.DB, releaseId);
-  if (documents.length === 0) {
-    console.error('No documents found for release:', releaseId);
-    return null;
-  }
-
-  // ドキュメントを優先順位でソート
-  const sortedDocs = [...documents].sort((a, b) => {
-    const priorityA = DOCUMENT_TYPE_PRIORITY.indexOf(a.document_type as DocumentType);
-    const priorityB = DOCUMENT_TYPE_PRIORITY.indexOf(b.document_type as DocumentType);
-    return (priorityA === -1 ? 999 : priorityA) - (priorityB === -1 ? 999 : priorityB);
-  });
-
-  // 各ドキュメントのPDFを取得（上限まで、サイズ制限あり、タイプ重複なし）
-  const pdfDocuments: Array<{ buffer: ArrayBuffer; type: DocumentType }> = [];
-  const usedTypes = new Set<DocumentType>();
-
-  for (const doc of sortedDocs) {
-    if (pdfDocuments.length >= MAX_PDFS_PER_ANALYSIS) break;
-    if (!doc.r2_key || !doc.document_type) continue;
-
-    const docType = doc.document_type as DocumentType;
-
-    // 同じタイプのドキュメントは1つだけ使用
-    if (usedTypes.has(docType)) {
-      console.log(`Skipping duplicate document type: ${docType}`);
-      continue;
-    }
-
-    const pdfBuffer = await getPdfFromR2(env.PDF_BUCKET, doc.r2_key);
-    if (pdfBuffer) {
-      if (pdfBuffer.byteLength > MAX_PDF_SIZE) {
-        console.log(`Skipping large PDF (${(pdfBuffer.byteLength / 1024 / 1024).toFixed(1)}MB): ${docType}`);
-        continue;
-      }
-      // 100ページを超える場合は先頭100ページに切り詰め
-      const truncatedBuffer = await truncatePdfIfNeeded(pdfBuffer);
-      pdfDocuments.push({
-        buffer: truncatedBuffer,
-        type: docType,
-      });
-      usedTypes.add(docType);
-    }
-  }
-
+  // PDFドキュメントを取得（共通ヘルパー使用）
+  const pdfDocuments = await getPdfDocumentsForRelease(env, releaseId);
   if (pdfDocuments.length === 0) {
     console.error('No PDFs available for release:', releaseId);
     return null;
@@ -230,48 +245,6 @@ export interface RegenerateResult {
   regenerated: number;
   cached: number;
   skipped: number;
-}
-
-// リリースからPDFドキュメントを取得するヘルパー
-async function getPdfDocumentsForRelease(
-  env: Env,
-  releaseId: string
-): Promise<Array<{ buffer: ArrayBuffer; type: DocumentType }>> {
-  const documents = await getDocumentsForRelease(env.DB, releaseId);
-
-  // ドキュメントを優先順位でソート
-  const sortedDocs = [...documents].sort((a, b) => {
-    const priorityA = DOCUMENT_TYPE_PRIORITY.indexOf(a.document_type as DocumentType);
-    const priorityB = DOCUMENT_TYPE_PRIORITY.indexOf(b.document_type as DocumentType);
-    return (priorityA === -1 ? 999 : priorityA) - (priorityB === -1 ? 999 : priorityB);
-  });
-
-  const pdfDocuments: Array<{ buffer: ArrayBuffer; type: DocumentType }> = [];
-  const usedTypes = new Set<DocumentType>();
-
-  for (const doc of sortedDocs) {
-    if (pdfDocuments.length >= MAX_PDFS_PER_ANALYSIS) break;
-    if (!doc.r2_key || !doc.document_type) continue;
-
-    const docType = doc.document_type as DocumentType;
-
-    // 同じタイプのドキュメントは1つだけ使用
-    if (usedTypes.has(docType)) continue;
-
-    const pdfBuffer = await getPdfFromR2(env.PDF_BUCKET, doc.r2_key);
-    if (pdfBuffer) {
-      if (pdfBuffer.byteLength > MAX_PDF_SIZE) continue;
-
-      const truncatedBuffer = await truncatePdfIfNeeded(pdfBuffer);
-      pdfDocuments.push({
-        buffer: truncatedBuffer,
-        type: docType,
-      });
-      usedTypes.add(docType);
-    }
-  }
-
-  return pdfDocuments;
 }
 
 // 1リリースの再分析処理
