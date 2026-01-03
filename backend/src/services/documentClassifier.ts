@@ -2,6 +2,7 @@
 // OpenAI gpt-4o-mini + Structured Outputs
 
 import OpenAI from 'openai';
+import { LLM_BATCH_SIZE } from '../constants';
 
 export interface DocumentClassification {
   document_type: 'earnings_summary' | 'earnings_presentation' | 'growth_potential' | 'other';
@@ -125,11 +126,10 @@ export class DocumentClassifier {
     documents: Array<{ title: string; pubdate?: string }>
   ): Promise<DocumentClassification[]> {
     // 並列実行（レート制限に注意）
-    const BATCH_SIZE = 10;
     const results: DocumentClassification[] = [];
 
-    for (let i = 0; i < documents.length; i += BATCH_SIZE) {
-      const batch = documents.slice(i, i + BATCH_SIZE);
+    for (let i = 0; i < documents.length; i += LLM_BATCH_SIZE) {
+      const batch = documents.slice(i, i + LLM_BATCH_SIZE);
       const batchResults = await Promise.all(
         batch.map((doc) => this.classify(doc.title, doc.pubdate))
       );

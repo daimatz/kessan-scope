@@ -4,6 +4,7 @@
 import { TdnetClient, TdnetDocument, isStrategicDocument, determineFiscalYear, determineFiscalQuarter, getDocumentType } from './tdnet';
 import { IrbankClient, toDocumentCandidate } from './irbank';
 import { DocumentClassifier, DocumentClassification } from './documentClassifier';
+import { LLM_BATCH_SIZE } from '../constants';
 
 // 共通のドキュメント形式
 export interface DocumentCandidate {
@@ -92,10 +93,9 @@ export async function classifyDocuments(
   const classifier = new DocumentClassifier(openaiApiKey);
   const results: ClassifiedDocument[] = [];
 
-  // バッチ処理（10件ずつ並列）
-  const BATCH_SIZE = 10;
-  for (let i = 0; i < candidates.length; i += BATCH_SIZE) {
-    const batch = candidates.slice(i, i + BATCH_SIZE);
+  // バッチ処理（LLM_BATCH_SIZE 件ずつ並列）
+  for (let i = 0; i < candidates.length; i += LLM_BATCH_SIZE) {
+    const batch = candidates.slice(i, i + LLM_BATCH_SIZE);
 
     const classifications = await Promise.all(
       batch.map((doc) => classifier.classify(doc.title, doc.pubdate))

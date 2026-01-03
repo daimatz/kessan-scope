@@ -15,10 +15,9 @@ import { analyzeEarningsRelease } from './earningsAnalyzer';
 import { fetchAndStorePdf } from './pdfStorage';
 import { MailerSendClient } from './mailersend';
 import { classificationToDocumentType, determineReleaseType } from './documentUtils';
+import { PARALLEL_LIMIT } from '../constants';
 import type { Env, ImportQueueMessage } from '../types';
 
-// アプリ側の並列処理数（Queue の max_concurrency と組み合わせ）
-const PARALLEL_LIMIT = 3;
 const limit = pLimit(PARALLEL_LIMIT);
 
 // ウォッチリスト追加時に呼び出す：Queueにメッセージを送信

@@ -18,13 +18,14 @@ import {
   saveCustomAnalysisForRelease,
   findCachedAnalysisForRelease,
 } from '../db/queries';
+import {
+  PARALLEL_LIMIT,
+  MAX_PDF_PAGES,
+  MAX_PDF_SIZE,
+  MAX_PDFS_PER_ANALYSIS,
+} from '../constants';
 
-// アプリ側の並列処理数
-const PARALLEL_LIMIT = 3;
 const limit = pLimit(PARALLEL_LIMIT);
-
-// Claude APIのページ数上限
-const MAX_PDF_PAGES = 100;
 
 // PDFが100ページを超える場合、先頭100ページだけを抽出
 async function truncatePdfIfNeeded(pdfBuffer: ArrayBuffer): Promise<ArrayBuffer> {
@@ -66,12 +67,6 @@ const DOCUMENT_TYPE_PRIORITY: DocumentType[] = [
   'earnings_presentation',  // 決算説明資料
   'growth_potential',       // 成長可能性資料
 ];
-
-// 最大PDF数（Claude APIの制限とコストを考慮）
-const MAX_PDFS_PER_ANALYSIS = 2;
-
-// PDFサイズ上限（32MB - Claude APIの上限）
-const MAX_PDF_SIZE = 32 * 1024 * 1024;
 
 // EarningsRelease に対して分析を実行（複数PDF対応）
 export async function analyzeEarningsRelease(
