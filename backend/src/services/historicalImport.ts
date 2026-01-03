@@ -1,3 +1,4 @@
+import pLimit from 'p-limit';
 import {
   getDocumentCandidates,
   classifyDocuments,
@@ -17,6 +18,7 @@ import type { Env, ImportQueueMessage, ReleaseType, DocumentType } from '../type
 
 // アプリ側の並列処理数（Queue の max_concurrency と組み合わせ）
 const PARALLEL_LIMIT = 3;
+const limit = pLimit(PARALLEL_LIMIT);
 
 // ウォッチリスト追加時に呼び出す：Queueにメッセージを送信
 export async function enqueueHistoricalImport(
@@ -156,34 +158,32 @@ export async function processImportBatch(
   let skipped = 0;
   const releasesToAnalyze = new Map<string, boolean>(); // releaseId -> isNewRelease
 
-  // PARALLEL_LIMIT 件ずつ並列処理（インポートのみ）
-  for (let i = 0; i < classifiedDocs.length; i += PARALLEL_LIMIT) {
-    const batch = classifiedDocs.slice(i, i + PARALLEL_LIMIT);
+  // p-limit で並列処理（常に PARALLEL_LIMIT 並列を維持）
+  const importResults = await Promise.all(
+    classifiedDocs.map(doc =>
+      limit(() => processDocument(env, stockCode, doc, existingHashes))
+    )
+  );
 
-    const results = await Promise.all(
-      batch.map(doc => processDocument(env, stockCode, doc, existingHashes))
-    );
+  // 結果を集計し、新しいハッシュを追加
+  for (const result of importResults) {
+    if (result.imported && result.hash) {
+      existingHashes.add(result.hash);
+      imported++;
 
-    // 結果を集計し、新しいハッシュを追加
-    for (const result of results) {
-      if (result.imported && result.hash) {
-        existingHashes.add(result.hash);
-        imported++;
-
-        // 分析対象のリリースを記録
-        if (result.releaseId) {
-          // isNewRelease が false（既存リリースに追加）の場合は再分析が必要
-          const currentIsNew = releasesToAnalyze.get(result.releaseId);
-          if (currentIsNew === undefined) {
-            releasesToAnalyze.set(result.releaseId, result.isNewRelease ?? true);
-          } else if (currentIsNew && result.isNewRelease === false) {
-            // 新規だったが後から追加ドキュメントが来た場合
-            releasesToAnalyze.set(result.releaseId, false);
-          }
+      // 分析対象のリリースを記録
+      if (result.releaseId) {
+        // isNewRelease が false（既存リリースに追加）の場合は再分析が必要
+        const currentIsNew = releasesToAnalyze.get(result.releaseId);
+        if (currentIsNew === undefined) {
+          releasesToAnalyze.set(result.releaseId, result.isNewRelease ?? true);
+        } else if (currentIsNew && result.isNewRelease === false) {
+          // 新規だったが後から追加ドキュメントが来た場合
+          releasesToAnalyze.set(result.releaseId, false);
         }
-      } else {
-        skipped++;
       }
+    } else {
+      skipped++;
     }
   }
 
@@ -191,20 +191,24 @@ export async function processImportBatch(
     `Import complete for ${stockCode}: ${imported} imported, ${skipped} skipped`
   );
 
-  // リリースごとに分析を実行
+  // リリースごとに分析を実行（p-limit で並列処理）
   console.log(`Analyzing ${releasesToAnalyze.size} releases...`);
-  for (const [releaseId, isNewRelease] of releasesToAnalyze) {
-    try {
-      const result = await analyzeEarningsRelease(env, releaseId);
-      if (result) {
-        console.log(
-          `Analyzed release ${releaseId}: ${result.customAnalysisCount} custom analyses${isNewRelease ? '' : ' (re-analyzed)'}`
-        );
-      }
-    } catch (error) {
-      console.error(`Failed to analyze release ${releaseId}:`, error);
-    }
-  }
+  await Promise.all(
+    Array.from(releasesToAnalyze.entries()).map(([releaseId, isNewRelease]) =>
+      limit(async () => {
+        try {
+          const result = await analyzeEarningsRelease(env, releaseId);
+          if (result) {
+            console.log(
+              `Analyzed release ${releaseId}: ${result.customAnalysisCount} custom analyses${isNewRelease ? '' : ' (re-analyzed)'}`
+            );
+          }
+        } catch (error) {
+          console.error(`Failed to analyze release ${releaseId}:`, error);
+        }
+      })
+    )
+  );
 
   // 完了通知メールを送信
   try {

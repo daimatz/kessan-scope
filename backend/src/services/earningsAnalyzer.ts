@@ -1,9 +1,27 @@
 // 決算分析サービス
 // PDFをClaudeで分析し、サマリーとカスタム分析を生成
 
+import pLimit from 'p-limit';
 import { PDFDocument } from 'pdf-lib';
 import { ClaudeService } from './claude';
 import { getPdfFromR2 } from './pdfStorage';
+import type { Env, EarningsRelease, EarningsSummary, WatchlistItem, DocumentType } from '../types';
+import {
+  getWatchlistByStockCode,
+  getDocumentsForRelease,
+  getEarningsReleaseById,
+  getEarningsReleasesByStockCode,
+  updateEarningsReleaseAnalysis,
+  getUserAnalysisByRelease,
+  createUserAnalysisForRelease,
+  updateUserAnalysisForRelease,
+  saveCustomAnalysisForRelease,
+  findCachedAnalysisForRelease,
+} from '../db/queries';
+
+// アプリ側の並列処理数
+const PARALLEL_LIMIT = 3;
+const limit = pLimit(PARALLEL_LIMIT);
 
 // Claude APIのページ数上限
 const MAX_PDF_PAGES = 100;
@@ -25,26 +43,17 @@ async function truncatePdfIfNeeded(pdfBuffer: ArrayBuffer): Promise<ArrayBuffer>
     const pages = await newPdfDoc.copyPages(pdfDoc, pageIndices);
     pages.forEach(page => newPdfDoc.addPage(page));
 
-    const truncatedBuffer = await newPdfDoc.save();
-    return truncatedBuffer.buffer as ArrayBuffer;
+    const truncatedBytes = await newPdfDoc.save();
+    // Uint8Array.buffer は元のバッファ全体を参照する可能性があるため、
+    // 新しいArrayBufferにコピーする
+    const newBuffer = new ArrayBuffer(truncatedBytes.length);
+    new Uint8Array(newBuffer).set(truncatedBytes);
+    return newBuffer;
   } catch (error) {
     console.error('Failed to truncate PDF:', error);
     return pdfBuffer; // 失敗したら元のバッファを返す
   }
 }
-import {
-  getWatchlistByStockCode,
-  getDocumentsForRelease,
-  getEarningsReleaseById,
-  getEarningsReleasesByStockCode,
-  updateEarningsReleaseAnalysis,
-  getUserAnalysisByRelease,
-  createUserAnalysisForRelease,
-  updateUserAnalysisForRelease,
-  saveCustomAnalysisForRelease,
-  findCachedAnalysisForRelease,
-} from '../db/queries';
-import type { Env, EarningsRelease, EarningsSummary, WatchlistItem, DocumentType } from '../types';
 
 export interface AnalyzeResult {
   summary: EarningsSummary;
@@ -166,32 +175,47 @@ export async function analyzeEarningsRelease(
   });
   console.log('Release summary saved to DB');
 
-  // カスタムプロンプトを持つユーザーの分析を生成
+  // カスタムプロンプトを持つユーザーの分析を生成（p-limit で並列処理）
   const watchlistItems = await getWatchlistByStockCode(env.DB, release.stock_code);
   let customAnalysisCount = 0;
 
+  // 既存の分析がないユーザーをフィルタリング
+  const itemsToProcess: typeof watchlistItems = [];
   for (const item of watchlistItems) {
-    // 既に分析がある場合はスキップ
     const existing = await getUserAnalysisByRelease(env.DB, item.user_id, releaseId);
-    if (existing) {
-      continue;
+    if (!existing) {
+      itemsToProcess.push(item);
     }
+  }
 
-    let customAnalysis: string | null = null;
+  // p-limit で並列処理（常に PARALLEL_LIMIT 並列を維持）
+  const results = await Promise.all(
+    itemsToProcess.map(item =>
+      limit(async () => {
+        let customAnalysis: string | null = null;
 
-    // カスタムプロンプトがある場合は追加分析
-    if (item.custom_prompt) {
-      try {
-        console.log(`Generating custom analysis for user ${item.user_id}...`);
-        const analysisResult = await claude.analyzeWithCustomPromptMultiplePdfs(pdfDocuments, item.custom_prompt);
-        customAnalysis = JSON.stringify(analysisResult);
-        customAnalysisCount++;
-      } catch (error) {
-        console.error(`Failed to generate custom analysis for user ${item.user_id}:`, error);
-      }
+        // カスタムプロンプトがある場合は追加分析
+        if (item.custom_prompt) {
+          try {
+            console.log(`Generating custom analysis for user ${item.user_id}...`);
+            const analysisResult = await claude.analyzeWithCustomPromptMultiplePdfs(pdfDocuments, item.custom_prompt);
+            customAnalysis = JSON.stringify(analysisResult);
+            return { item, customAnalysis, success: true };
+          } catch (error) {
+            console.error(`Failed to generate custom analysis for user ${item.user_id}:`, error);
+            return { item, customAnalysis: null, success: false };
+          }
+        }
+        return { item, customAnalysis, success: true };
+      })
+    )
+  );
+
+  // DB保存は逐次（D1の制限を考慮）
+  for (const { item, customAnalysis, success } of results) {
+    if (success && customAnalysis) {
+      customAnalysisCount++;
     }
-
-    // ユーザー分析レコードを作成（カスタム分析の有無に関わらず）
     await createUserAnalysisForRelease(env.DB, {
       user_id: item.user_id,
       release_id: releaseId,
@@ -220,9 +244,6 @@ export interface RegenerateResult {
   cached: number;
   skipped: number;
 }
-
-// アプリ側の並列処理数（Queue の max_concurrency と組み合わせ）
-const REGENERATE_PARALLEL_LIMIT = 3;
 
 // リリースからPDFドキュメントを取得するヘルパー
 async function getPdfDocumentsForRelease(
@@ -361,7 +382,7 @@ async function regenerateOneRelease(
   }
 }
 
-// ウォッチリストアイテムのカスタム分析を再生成（3並列）
+// ウォッチリストアイテムのカスタム分析を再生成（p-limit で並列処理）
 export async function regenerateCustomAnalysis(
   env: Env,
   watchlistItem: WatchlistItem
@@ -375,30 +396,28 @@ export async function regenerateCustomAnalysis(
   const claude = new ClaudeService(env.ANTHROPIC_API_KEY);
   const allReleases = await getEarningsReleasesByStockCode(env.DB, stockCode);
 
+  // p-limit で並列処理（常に PARALLEL_LIMIT 並列を維持）
+  const results = await Promise.all(
+    allReleases.map(release =>
+      limit(() => regenerateOneRelease(env, claude, release, userId, customPrompt))
+    )
+  );
+
   let regenerated = 0;
   let cached = 0;
   let skipped = 0;
 
-  // REGENERATE_PARALLEL_LIMIT 並列で処理
-  for (let i = 0; i < allReleases.length; i += REGENERATE_PARALLEL_LIMIT) {
-    const batch = allReleases.slice(i, i + REGENERATE_PARALLEL_LIMIT);
-
-    const results = await Promise.all(
-      batch.map(release => regenerateOneRelease(env, claude, release, userId, customPrompt))
-    );
-
-    for (const result of results) {
-      switch (result) {
-        case 'regenerated':
-          regenerated++;
-          break;
-        case 'cached':
-          cached++;
-          break;
-        case 'skipped':
-          skipped++;
-          break;
-      }
+  for (const result of results) {
+    switch (result) {
+      case 'regenerated':
+        regenerated++;
+        break;
+      case 'cached':
+        cached++;
+        break;
+      case 'skipped':
+        skipped++;
+        break;
     }
   }
 

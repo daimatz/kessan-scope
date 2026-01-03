@@ -5,8 +5,6 @@ import ReactMarkdown from 'react-markdown';
 import { earningsAPI, chatAPI, getDocumentTypeLabel } from '../api';
 import type { DocumentType } from '../api';
 
-type AnalysisTab = 'standard' | 'custom';
-
 export default function ReleaseDetail() {
   const { releaseId } = useParams<{ releaseId: string }>();
   const queryClient = useQueryClient();
@@ -15,8 +13,8 @@ export default function ReleaseDetail() {
   const [showPdf, setShowPdf] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
-  const [analysisTab, setAnalysisTab] = useState<AnalysisTab>('standard');
-  const [selectedPromptIndex, setSelectedPromptIndex] = useState<number>(0);
+  // 'standard' または履歴のインデックス番号
+  const [selectedAnalysis, setSelectedAnalysis] = useState<'standard' | number>('standard');
   const chatMessagesRef = useRef<HTMLDivElement>(null);
 
   const { data, isLoading, error } = useQuery({
@@ -241,26 +239,33 @@ export default function ReleaseDetail() {
                 )}
               </nav>
 
-              {/* タブヘッダー */}
-              <div className="analysis-tabs">
-                <button
-                  className={`analysis-tab ${analysisTab === 'standard' ? 'active' : ''}`}
-                  onClick={() => setAnalysisTab('standard')}
-                  disabled={!release.summary}
-                >
-                  標準分析
-                </button>
-                <button
-                  className={`analysis-tab ${analysisTab === 'custom' ? 'active' : ''}`}
-                  onClick={() => setAnalysisTab('custom')}
-                  disabled={!customAnalysis}
-                >
-                  カスタム分析
-                </button>
+              {/* 分析軸セレクター（標準 + カスタム全部） */}
+              <div className="prompt-selector">
+                <span className="prompt-selector-label">分析軸:</span>
+                <div className="prompt-buttons">
+                  {release.summary && (
+                    <button
+                      className={`prompt-button ${selectedAnalysis === 'standard' ? 'active' : ''}`}
+                      onClick={() => setSelectedAnalysis('standard')}
+                    >
+                      標準
+                    </button>
+                  )}
+                  {analysisHistory.map((item, index) => (
+                    <button
+                      key={index}
+                      className={`prompt-button ${selectedAnalysis === index ? 'active' : ''}`}
+                      onClick={() => setSelectedAnalysis(index)}
+                      title={item.prompt}
+                    >
+                      {item.prompt.length > 15 ? `${item.prompt.substring(0, 15)}...` : item.prompt}
+                    </button>
+                  ))}
+                </div>
               </div>
 
-              {/* 標準分析タブ */}
-              {analysisTab === 'standard' && release.summary && (
+              {/* 標準分析 */}
+              {selectedAnalysis === 'standard' && release.summary && (
                 <div className="tab-content">
                   <h2>概要</h2>
                   <p className="overview">{release.summary.overview}</p>
@@ -314,39 +319,17 @@ export default function ReleaseDetail() {
                 </div>
               )}
 
-              {/* カスタム分析タブ */}
-              {analysisTab === 'custom' && analysisHistory.length > 0 && (
+              {/* カスタム分析 */}
+              {typeof selectedAnalysis === 'number' && analysisHistory[selectedAnalysis] && (
                 <div className="tab-content">
-                  {/* 分析軸セレクター */}
-                  <div className="prompt-selector">
-                    <span className="prompt-selector-label">分析軸:</span>
-                    <div className="prompt-buttons">
-                      {analysisHistory.map((item, index) => (
-                        <button
-                          key={index}
-                          className={`prompt-button ${selectedPromptIndex === index ? 'active' : ''}`}
-                          onClick={() => setSelectedPromptIndex(index)}
-                          title={item.prompt}
-                        >
-                          {item.prompt.length > 20 ? `${item.prompt.substring(0, 20)}...` : item.prompt}
-                        </button>
-                      ))}
-                    </div>
+                  <div className="analysis-meta">
+                    <span className="analysis-date">
+                      {new Date(analysisHistory[selectedAnalysis].created_at).toLocaleString('ja-JP')}
+                    </span>
                   </div>
-
-                  {/* 選択中の分析内容 */}
-                  {analysisHistory[selectedPromptIndex] && (
-                    <div className="custom-analysis-content">
-                      <div className="analysis-meta">
-                        <span className="analysis-date">
-                          {new Date(analysisHistory[selectedPromptIndex].created_at).toLocaleString('ja-JP')}
-                        </span>
-                      </div>
-                      <div className="custom-analysis">
-                        {analysisHistory[selectedPromptIndex].analysis}
-                      </div>
-                    </div>
-                  )}
+                  <div className="custom-analysis">
+                    {analysisHistory[selectedAnalysis].analysis}
+                  </div>
                 </div>
               )}
             </section>
