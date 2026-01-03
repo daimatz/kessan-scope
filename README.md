@@ -284,54 +284,49 @@ kessan-scope/
 
 ### wrangler.toml
 
+wrangler.toml はローカル開発用と本番用の設定を含む。詳細は `backend/wrangler.toml` を参照。
+
 ```toml
+# 共通設定
 name = "kessan-scope"
 main = "src/index.ts"
-compatibility_date = "2024-12-01"
-compatibility_flags = ["nodejs_compat"]
 
-# D1 Database
+# ローカル開発用
 [[d1_databases]]
 binding = "DB"
-database_name = "kessan-scope-db"
-database_id = "xxx"
+database_id = "placeholder"  # ローカルは SQLite エミュレーション
 
-# R2 Bucket (PDF storage)
-[[r2_buckets]]
-binding = "PDF_BUCKET"
-bucket_name = "kessan-scope-pdfs"
+# 本番環境
+[env.production.vars]
+FRONTEND_URL = "https://kessan-scope.fyi"
+ENVIRONMENT = "production"
 
-[vars]
-FRONTEND_URL = "http://localhost:5173"
-
-# Cron Triggers
-[triggers]
-crons = ["0 0 * * *", "0 9 * * *"]  # 9:00 / 18:00 JST
-
-# Queues
-[[queues.producers]]
-queue = "kessan-scope-import"
-binding = "IMPORT_QUEUE"
-
-[[queues.consumers]]
-queue = "kessan-scope-import"
-max_batch_size = 1
-max_concurrency = 1
-
-# Production environment
-[env.production]
-vars = { FRONTEND_URL = "https://kessan-scope.fyi", ENVIRONMENT = "production" }
+[[env.production.d1_databases]]
+binding = "DB"
+database_id = "xxx"  # wrangler d1 create で取得した ID
 ```
 
 ### Secrets
 
+ローカル開発用は `.dev.vars` ファイルに記載：
+
 ```bash
-wrangler secret put ANTHROPIC_API_KEY
-wrangler secret put MAILERSEND_API_KEY
-wrangler secret put MAILERSEND_FROM_EMAIL
-wrangler secret put GOOGLE_CLIENT_ID
-wrangler secret put GOOGLE_CLIENT_SECRET
-wrangler secret put JWT_SECRET
+# backend/.dev.vars
+ANTHROPIC_API_KEY=sk-ant-xxx
+OPENAI_API_KEY=sk-proj-xxx
+GOOGLE_CLIENT_ID=xxx
+GOOGLE_CLIENT_SECRET=xxx
+JWT_SECRET=local-secret
+MAILERSEND_API_KEY=xxx
+MAILERSEND_FROM_EMAIL=noreply@example.com
+```
+
+本番用は `--env=production` で設定：
+
+```bash
+wrangler secret put ANTHROPIC_API_KEY --env=production
+wrangler secret put GOOGLE_CLIENT_ID --env=production
+# ...
 ```
 
 ## 開発
@@ -339,6 +334,9 @@ wrangler secret put JWT_SECRET
 ```bash
 # 依存関係インストール
 npm install
+
+# ローカル DB マイグレーション
+cd backend && npm run db:migrate:local && cd ..
 
 # 開発サーバー起動（フロント+バックエンド）
 npm run dev
@@ -349,54 +347,63 @@ npm run dev:frontend
 # バックエンドのみ
 npm run dev:backend
 
-# ビルド
-npm run build
-
 # テスト
 npm run test
-
-# デプロイ
-npm run deploy
 ```
 
 ## デプロイ
 
-### 1. Cloudflareリソース作成
+### 初回セットアップ
+
+#### 1. Cloudflare リソース作成
 
 ```bash
-wrangler d1 create kessan-scope-db
+cd backend
+wrangler d1 create kessan-scope-db      # → database_id を wrangler.toml に設定
 wrangler r2 bucket create kessan-scope-pdfs
 wrangler queues create kessan-scope-import
 ```
 
-### 2. マイグレーション実行
+#### 2. 本番 DB マイグレーション
 
 ```bash
+wrangler d1 migrations apply kessan-scope-db --remote
+```
+
+#### 3. Secrets 設定
+
+```bash
+wrangler secret put ANTHROPIC_API_KEY --env=production
+wrangler secret put MAILERSEND_API_KEY --env=production
+wrangler secret put MAILERSEND_FROM_EMAIL --env=production
+wrangler secret put GOOGLE_CLIENT_ID --env=production
+wrangler secret put GOOGLE_CLIENT_SECRET --env=production
+wrangler secret put JWT_SECRET --env=production
+```
+
+#### 4. Google OAuth 設定
+
+[Google Cloud Console](https://console.cloud.google.com/apis/credentials) で Authorized redirect URI に追加:
+- `https://api.kessan-scope.fyi/api/auth/callback`
+
+### 本番デプロイ
+
+```bash
+# バックエンド（Worker）
 cd backend
-npm run db:migrate
+npm run deploy:production
+
+# フロントエンド（Pages）
+cd frontend
+npm run deploy:production
 ```
 
-### 3. Secrets設定
+### 本番環境
 
-```bash
-wrangler secret put ANTHROPIC_API_KEY --env production
-wrangler secret put MAILERSEND_API_KEY --env production
-wrangler secret put MAILERSEND_FROM_EMAIL --env production
-wrangler secret put GOOGLE_CLIENT_ID --env production
-wrangler secret put GOOGLE_CLIENT_SECRET --env production
-wrangler secret put JWT_SECRET --env production
-```
-
-### 4. デプロイ
-
-```bash
-# バックエンド
-wrangler deploy --env production
-
-# フロントエンド（Cloudflare Pages）
-npm run build
-# Pagesにdist/をデプロイ
-```
+| サービス | URL |
+|----------|-----|
+| フロントエンド | https://kessan-scope.fyi |
+| API | https://api.kessan-scope.fyi |
 
 ## 参考リンク
 

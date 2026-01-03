@@ -38,7 +38,7 @@ max_concurrency = 1
 max_retries = 3
 
 # Secrets（.dev.vars に記載）
-# ANTHROPIC_API_KEY, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET,
+# ANTHROPIC_API_KEY, OPENAI_API_KEY, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET,
 # JWT_SECRET, MAILERSEND_API_KEY, MAILERSEND_FROM_EMAIL
 
 # ==============================================================================
