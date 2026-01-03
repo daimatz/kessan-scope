@@ -38,5 +38,5 @@ binding = "IMPORT_QUEUE"
 [[queues.consumers]]
 queue = "stock-watcher-import"
 max_batch_size = 1
-max_concurrency = 5
+max_concurrency = 1
 max_retries = 3
