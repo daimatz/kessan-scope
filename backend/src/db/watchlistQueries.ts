@@ -66,6 +66,17 @@ export async function getWatchlistByStockCode(db: D1Database, stockCode: string)
   return result.results;
 }
 
+// ユーザーと銘柄コードで特定のウォッチリストアイテムを取得
+export async function getWatchlistItemByUserAndStock(
+  db: D1Database,
+  userId: string,
+  stockCode: string
+): Promise<WatchlistItem | null> {
+  return db.prepare(
+    'SELECT * FROM watchlist WHERE user_id = ? AND stock_code = ?'
+  ).bind(userId, stockCode).first<WatchlistItem>();
+}
+
 export async function getWatchlistItemById(
   db: D1Database,
   id: string,

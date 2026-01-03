@@ -62,6 +62,40 @@ export async function getEarningsReleasesByStockCode(db: D1Database, stockCode: 
   return result.results;
 }
 
+// 前後のリリースを取得（時系列ナビゲーション用）
+// allReleases は fiscal_year DESC, fiscal_quarter DESC でソートされているので、
+// next = より新しい = fiscal_year/quarter が大きい
+// prev = より古い = fiscal_year/quarter が小さい
+export async function getAdjacentReleases(
+  db: D1Database,
+  stockCode: string,
+  fiscalYear: string,
+  fiscalQuarter: number | null
+): Promise<{ prev: EarningsRelease | null; next: EarningsRelease | null }> {
+  // 次（より新しい）リリースを取得
+  const nextResult = await db.prepare(`
+    SELECT * FROM earnings_release
+    WHERE stock_code = ?
+      AND (fiscal_year > ? OR (fiscal_year = ? AND COALESCE(fiscal_quarter, 0) > COALESCE(?, 0)))
+    ORDER BY fiscal_year ASC, fiscal_quarter ASC NULLS FIRST
+    LIMIT 1
+  `).bind(stockCode, fiscalYear, fiscalYear, fiscalQuarter).first<EarningsRelease>();
+
+  // 前（より古い）リリースを取得
+  const prevResult = await db.prepare(`
+    SELECT * FROM earnings_release
+    WHERE stock_code = ?
+      AND (fiscal_year < ? OR (fiscal_year = ? AND COALESCE(fiscal_quarter, 0) < COALESCE(?, 0)))
+    ORDER BY fiscal_year DESC, fiscal_quarter DESC NULLS LAST
+    LIMIT 1
+  `).bind(stockCode, fiscalYear, fiscalYear, fiscalQuarter).first<EarningsRelease>();
+
+  return {
+    prev: prevResult ?? null,
+    next: nextResult ?? null,
+  };
+}
+
 // リリースに紐づくドキュメント一覧を取得
 export async function getDocumentsForRelease(db: D1Database, releaseId: string): Promise<Earnings[]> {
   const result = await db.prepare(`

@@ -29,6 +29,7 @@ export {
   updateWatchlistItem,
   getWatchlistByStockCode,
   getWatchlistItemById,
+  getWatchlistItemByUserAndStock,
   getWatchlistItemsWithoutAnalysis,
 } from './watchlistQueries';
 
@@ -48,6 +49,7 @@ export {
   getOrCreateEarningsRelease,
   getEarningsReleaseById,
   getEarningsReleasesByStockCode,
+  getAdjacentReleases,
   getDocumentsForRelease,
   updateEarningsReleaseAnalysis,
   type UserReleaseAnalysis,

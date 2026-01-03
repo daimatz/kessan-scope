@@ -6,9 +6,10 @@ import {
   ReleaseDetailResponseSchema,
 } from '@stock-watcher/shared';
 import {
-  getWatchlist,
+  getWatchlistItemByUserAndStock,
   getEarningsReleaseById,
   getEarningsReleasesByStockCode,
+  getAdjacentReleases,
   getDocumentsForRelease,
   getUserAnalysisByRelease,
   getCustomAnalysisHistoryForRelease,
@@ -71,9 +72,8 @@ earnings.get('/releases/stock/:code', async (c) => {
     return c.json({ error: '無効な証券コードです' }, 400);
   }
 
-  // ウォッチリスト情報を取得
-  const watchlist = await getWatchlist(c.env.DB, userId);
-  const watchlistItem = watchlist.find(w => w.stock_code === code);
+  // ウォッチリスト情報を取得（直接SQLで特定銘柄を取得）
+  const watchlistItem = await getWatchlistItemByUserAndStock(c.env.DB, userId, code);
 
   // リリース一覧を取得
   const releasesList = await getEarningsReleasesByStockCode(c.env.DB, code);
@@ -130,9 +130,8 @@ earnings.get('/release/:releaseId', async (c) => {
     return c.json({ error: '決算発表が見つかりません' }, 404);
   }
 
-  // ウォッチリストから銘柄名を取得
-  const watchlist = await getWatchlist(c.env.DB, userId);
-  const watchlistItem = watchlist.find(w => w.stock_code === release.stock_code);
+  // ウォッチリストから銘柄名を取得（直接SQLで特定銘柄を取得）
+  const watchlistItem = await getWatchlistItemByUserAndStock(c.env.DB, userId, release.stock_code);
 
   // リリースに紐づくドキュメント一覧を取得
   const documents = await getDocumentsForRelease(c.env.DB, releaseId);
@@ -181,12 +180,13 @@ earnings.get('/release/:releaseId', async (c) => {
     }
   }
 
-  // 同じ銘柄の前後のリリースを取得（時系列ナビゲーション用）
-  const allReleases = await getEarningsReleasesByStockCode(c.env.DB, release.stock_code);
-  const currentIndex = allReleases.findIndex(r => r.id === releaseId);
-  // allReleases は fiscal_year DESC, fiscal_quarter DESC でソートされている
-  const nextRelease = currentIndex > 0 ? allReleases[currentIndex - 1] : null;
-  const prevRelease = currentIndex < allReleases.length - 1 ? allReleases[currentIndex + 1] : null;
+  // 同じ銘柄の前後のリリースを取得（時系列ナビゲーション用・SQLで直接取得）
+  const { prev: prevRelease, next: nextRelease } = await getAdjacentReleases(
+    c.env.DB,
+    release.stock_code,
+    release.fiscal_year,
+    release.fiscal_quarter
+  );
 
   // zod で API レスポンス用にフィルタリング
   return c.json(ReleaseDetailResponseSchema.parse({
@@ -242,10 +242,9 @@ earnings.get('/release/:releaseId/pdf/:documentType', async (c) => {
     return c.json({ error: '決算発表が見つかりません' }, 404);
   }
 
-  // 認可チェック: ユーザーのウォッチリストに含まれているか確認
-  const watchlist = await getWatchlist(c.env.DB, userId);
-  const hasAccess = watchlist.some(w => w.stock_code === release.stock_code);
-  if (!hasAccess) {
+  // 認可チェック: ユーザーのウォッチリストに含まれているか確認（直接SQLで確認）
+  const watchlistItem = await getWatchlistItemByUserAndStock(c.env.DB, userId, release.stock_code);
+  if (!watchlistItem) {
     return c.json({ error: 'この銘柄へのアクセス権がありません' }, 403);
   }
 
