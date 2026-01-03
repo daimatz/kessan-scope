@@ -100,23 +100,28 @@ export async function updateStockList(env: Env): Promise<{ updated: number; tota
     (row) => row.listingStatus === '上場' && row.stockCode && row.stockCode.match(/^\d{4,5}$/)
   );
 
-  // Upsert to database
+  // Upsert to database in batches
+  const BATCH_SIZE = 100;
   let updated = 0;
-  for (const stock of listedStocks) {
-    try {
-      await env.DB.prepare(
+
+  for (let i = 0; i < listedStocks.length; i += BATCH_SIZE) {
+    const batch = listedStocks.slice(i, i + BATCH_SIZE);
+    const statements = batch.map((stock) =>
+      env.DB.prepare(
         `INSERT INTO stocks (code, name, market, sector, updated_at)
          VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
          ON CONFLICT(code) DO UPDATE SET
            name = excluded.name,
            sector = excluded.sector,
            updated_at = CURRENT_TIMESTAMP`
-      )
-        .bind(stock.stockCode, stock.name, null, stock.industry)
-        .run();
-      updated++;
+      ).bind(stock.stockCode, stock.name, null, stock.industry)
+    );
+
+    try {
+      await env.DB.batch(statements);
+      updated += batch.length;
     } catch (error) {
-      console.error(`Failed to upsert stock ${stock.stockCode}:`, error);
+      console.error(`Failed to upsert batch starting at ${i}:`, error);
     }
   }
 
