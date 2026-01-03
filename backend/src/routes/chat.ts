@@ -8,6 +8,7 @@ import {
   getEarningsReleaseById,
   getDocumentsForRelease,
   getPastReleasesForChat,
+  getWatchlistItemByUserAndStock,
 } from '../db/queries';
 import { ClaudeService } from '../services/claude';
 
@@ -83,6 +84,12 @@ chat.post('/release/:releaseId/stream', async (c) => {
   const release = await getEarningsReleaseById(c.env.DB, releaseId);
   if (!release) {
     return c.json({ error: '決算発表が見つかりません' }, 404);
+  }
+
+  // 認可チェック: ユーザーのウォッチリストに含まれているか確認
+  const watchlistItem = await getWatchlistItemByUserAndStock(c.env.DB, userId, release.stock_code);
+  if (!watchlistItem) {
+    return c.json({ error: 'この銘柄へのアクセス権がありません' }, 403);
   }
 
   // リリースに紐づくドキュメントを取得

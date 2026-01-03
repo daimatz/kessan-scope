@@ -75,6 +75,11 @@ earnings.get('/releases/stock/:code', async (c) => {
   // ウォッチリスト情報を取得（直接SQLで特定銘柄を取得）
   const watchlistItem = await getWatchlistItemByUserAndStock(c.env.DB, userId, code);
 
+  // 認可チェック: ユーザーのウォッチリストに含まれているか確認
+  if (!watchlistItem) {
+    return c.json({ error: 'この銘柄へのアクセス権がありません' }, 403);
+  }
+
   // リリース一覧を取得
   const releasesList = await getEarningsReleasesByStockCode(c.env.DB, code);
 
@@ -132,6 +137,11 @@ earnings.get('/release/:releaseId', async (c) => {
 
   // ウォッチリストから銘柄名を取得（直接SQLで特定銘柄を取得）
   const watchlistItem = await getWatchlistItemByUserAndStock(c.env.DB, userId, release.stock_code);
+
+  // 認可チェック: ユーザーのウォッチリストに含まれているか確認
+  if (!watchlistItem) {
+    return c.json({ error: 'この銘柄へのアクセス権がありません' }, 403);
+  }
 
   // リリースに紐づくドキュメント一覧を取得
   const documents = await getDocumentsForRelease(c.env.DB, releaseId);
