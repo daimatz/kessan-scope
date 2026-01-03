@@ -11,7 +11,7 @@ export default function ReleaseDetail() {
   const queryClient = useQueryClient();
   const [message, setMessage] = useState('');
   const [selectedPdfType, setSelectedPdfType] = useState<DocumentType | null>(null);
-  const [showPdf, setShowPdf] = useState(false);
+  const [showPdf, setShowPdf] = useState(true); // デフォルトで表示
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
   // 'standard', 'current'（現在のカスタム分析）, または履歴のインデックス番号
@@ -44,10 +44,13 @@ export default function ReleaseDetail() {
     enabled: !!releaseId,
   });
 
-  // 最初のドキュメントを選択
+  // 優先順位でドキュメントを選択（決算説明資料 > 決算短信 > 最初のドキュメント）
   useEffect(() => {
     if (data?.release.documents.length && !selectedPdfType) {
-      setSelectedPdfType(data.release.documents[0].document_type);
+      const docs = data.release.documents;
+      const presentation = docs.find(d => d.document_type === 'earnings_presentation');
+      const summary = docs.find(d => d.document_type === 'earnings_summary');
+      setSelectedPdfType(presentation?.document_type || summary?.document_type || docs[0].document_type);
     }
   }, [data, selectedPdfType]);
 
@@ -180,48 +183,39 @@ export default function ReleaseDetail() {
         <div className="detail-left-column">
           {/* PDF表示セクション */}
           {release.documents.length > 0 && (
-            <section className="section">
-              <div className="section-header">
-                <h2>決算資料</h2>
-                <div className="section-actions">
-                  <button
-                    onClick={() => setShowPdf(!showPdf)}
-                    className="toggle-btn"
-                  >
-                    {showPdf ? '閉じる' : 'プレビュー'}
-                  </button>
+            <section className="section pdf-section">
+              {/* コンパクトなヘッダー: タブ + 操作ボタン */}
+              <div className="pdf-header">
+                <div className="document-tabs">
+                  {release.documents.map((doc) => (
+                    <button
+                      key={doc.id}
+                      className={`document-tab ${selectedPdfType === doc.document_type ? 'active' : ''}`}
+                      onClick={() => setSelectedPdfType(doc.document_type)}
+                    >
+                      {getDocumentTypeLabel(doc.document_type)}
+                    </button>
+                  ))}
                 </div>
-              </div>
-
-              {/* ドキュメントタブ */}
-              <div className="document-tabs">
-                {release.documents.map((doc) => (
-                  <button
-                    key={doc.id}
-                    className={`document-tab ${selectedPdfType === doc.document_type ? 'active' : ''}`}
-                    onClick={() => setSelectedPdfType(doc.document_type)}
-                  >
-                    {getDocumentTypeLabel(doc.document_type)}
-                  </button>
-                ))}
-              </div>
-
-              {/* 選択中のドキュメント情報 */}
-              {selectedPdfType && (
-                <div className="selected-document-info">
-                  {release.documents.find(d => d.document_type === selectedPdfType)?.document_title || getDocumentTypeLabel(selectedPdfType)}
+                <div className="pdf-actions">
                   {selectedPdfUrl && (
                     <a
                       href={selectedPdfUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="download-link"
+                      className="pdf-action-link"
                     >
-                      新しいタブで開く
+                      別タブ↗
                     </a>
                   )}
+                  <button
+                    onClick={() => setShowPdf(!showPdf)}
+                    className="toggle-btn"
+                  >
+                    {showPdf ? '閉じる' : '開く'}
+                  </button>
                 </div>
-              )}
+              </div>
 
               {showPdf && selectedPdfUrl && (
                 <div className="pdf-viewer">

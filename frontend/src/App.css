@@ -2179,11 +2179,40 @@ input:focus, textarea:focus, select:focus {
   color: white;
 }
 
+/* PDF Section - Compact Header */
+.pdf-section {
+  padding-top: 12px;
+}
+
+.pdf-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.pdf-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.pdf-action-link {
+  font-size: 13px;
+  color: var(--primary);
+  text-decoration: none;
+}
+
+.pdf-action-link:hover {
+  text-decoration: underline;
+}
+
 /* Document Tabs */
 .document-tabs {
   display: flex;
   gap: 8px;
-  margin-bottom: 16px;
   flex-wrap: wrap;
 }
 
