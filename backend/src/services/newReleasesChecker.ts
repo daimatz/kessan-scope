@@ -12,29 +12,8 @@ import {
 } from '../db/queries';
 import { analyzeEarningsRelease } from './earningsAnalyzer';
 import { fetchAndStorePdf } from './pdfStorage';
-import type { Env, ReleaseType, DocumentType } from '../types';
-
-// DocumentType に変換
-function classificationToDocumentType(classType: string): DocumentType | null {
-  switch (classType) {
-    case 'earnings_summary':
-      return 'earnings_summary';
-    case 'earnings_presentation':
-      return 'earnings_presentation';
-    case 'growth_potential':
-      return 'growth_potential';
-    default:
-      return null;
-  }
-}
-
-// ReleaseType を決定
-function determineReleaseType(docType: DocumentType): ReleaseType {
-  if (docType === 'growth_potential') {
-    return 'growth_potential';
-  }
-  return 'quarterly_earnings';
-}
+import { classificationToDocumentType, determineReleaseType } from './documentUtils';
+import type { Env } from '../types';
 
 // 全ウォッチリストユーザーの銘柄をチェック
 export async function checkNewReleases(env: Env): Promise<{ checked: number; imported: number }> {
@@ -60,6 +39,23 @@ export async function checkNewReleases(env: Env): Promise<{ checked: number; imp
 
   console.log(`Found ${strategicDocs.length} recent strategic documents (rule-based)`);
 
+  // ウォッチリストにある銘柄のみをフィルタ
+  const watchedDocs = strategicDocs.filter(doc => {
+    const docCode = doc.company_code.slice(0, 4);
+    return stockCodes.some(code => code.slice(0, 4) === docCode);
+  });
+
+  console.log(`${watchedDocs.length} documents match watched stocks`);
+
+  if (watchedDocs.length === 0) {
+    return { checked: stockCodes.length, imported: 0 };
+  }
+
+  // LLM でバッチ分類
+  const classifications = await classifier.classifyBatch(
+    watchedDocs.map(doc => ({ title: doc.title, pubdate: doc.pubdate }))
+  );
+
   // 銘柄ごとの既存ハッシュをキャッシュ
   const hashCache = new Map<string, Set<string>>();
   // 分析対象のリリースを追跡
@@ -67,18 +63,10 @@ export async function checkNewReleases(env: Env): Promise<{ checked: number; imp
 
   let imported = 0;
 
-  for (const doc of strategicDocs) {
-    // 4桁コードに正規化して比較
+  for (let i = 0; i < watchedDocs.length; i++) {
+    const doc = watchedDocs[i];
+    const classification = classifications[i];
     const docCode = doc.company_code.slice(0, 4);
-
-    // ウォッチリストにある銘柄かチェック
-    const isWatched = stockCodes.some(code => code.slice(0, 4) === docCode);
-    if (!isWatched) {
-      continue;
-    }
-
-    // LLM で分類
-    const classification = await classifier.classify(doc.title, doc.pubdate);
 
     // 対象外ならスキップ
     if (classification.document_type === 'other') {

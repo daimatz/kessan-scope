@@ -29,6 +29,7 @@ export {
   updateWatchlistItem,
   getWatchlistByStockCode,
   getWatchlistItemById,
+  getWatchlistItemsWithoutAnalysis,
 } from './watchlistQueries';
 
 // 決算関連

@@ -76,3 +76,18 @@ export async function getWatchlistItemById(
   ).bind(id, userId).first<WatchlistItem>();
   return result;
 }
+
+// 指定リリースに対してまだ分析がないウォッチリストアイテムを取得
+export async function getWatchlistItemsWithoutAnalysis(
+  db: D1Database,
+  stockCode: string,
+  releaseId: string
+): Promise<WatchlistItem[]> {
+  const result = await db.prepare(`
+    SELECT w.* FROM watchlist w
+    LEFT JOIN user_release_analysis ura
+      ON ura.user_id = w.user_id AND ura.release_id = ?
+    WHERE w.stock_code = ? AND ura.id IS NULL
+  `).bind(releaseId, stockCode).all<WatchlistItem>();
+  return result.results;
+}

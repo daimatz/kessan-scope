@@ -14,7 +14,8 @@ import {
 import { analyzeEarningsRelease } from './earningsAnalyzer';
 import { fetchAndStorePdf } from './pdfStorage';
 import { MailerSendClient } from './mailersend';
-import type { Env, ImportQueueMessage, ReleaseType, DocumentType } from '../types';
+import { classificationToDocumentType, determineReleaseType } from './documentUtils';
+import type { Env, ImportQueueMessage } from '../types';
 
 // アプリ側の並列処理数（Queue の max_concurrency と組み合わせ）
 const PARALLEL_LIMIT = 3;
@@ -38,28 +39,6 @@ export async function enqueueHistoricalImport(
 
   await queue.send(message);
   console.log(`Enqueued historical import for ${stockCode}`);
-}
-
-// DocumentType に変換
-function classificationToDocumentType(classType: string): DocumentType | null {
-  switch (classType) {
-    case 'earnings_summary':
-      return 'earnings_summary';
-    case 'earnings_presentation':
-      return 'earnings_presentation';
-    case 'growth_potential':
-      return 'growth_potential';
-    default:
-      return null;
-  }
-}
-
-// ReleaseType を決定
-function determineReleaseType(docType: DocumentType): ReleaseType {
-  if (docType === 'growth_potential') {
-    return 'growth_potential';
-  }
-  return 'quarterly_earnings';
 }
 
 // 1ドキュメントを処理（LLM分類済み）

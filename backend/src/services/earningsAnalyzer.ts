@@ -7,7 +7,7 @@ import { ClaudeService } from './claude';
 import { getPdfFromR2 } from './pdfStorage';
 import type { Env, EarningsRelease, EarningsSummary, WatchlistItem, DocumentType } from '../types';
 import {
-  getWatchlistByStockCode,
+  getWatchlistItemsWithoutAnalysis,
   getDocumentsForRelease,
   getEarningsReleaseById,
   getEarningsReleasesByStockCode,
@@ -176,17 +176,9 @@ export async function analyzeEarningsRelease(
   console.log('Release summary saved to DB');
 
   // カスタムプロンプトを持つユーザーの分析を生成（p-limit で並列処理）
-  const watchlistItems = await getWatchlistByStockCode(env.DB, release.stock_code);
+  // SQL側で既存の分析がないユーザーのみをフィルタリング
+  const itemsToProcess = await getWatchlistItemsWithoutAnalysis(env.DB, release.stock_code, releaseId);
   let customAnalysisCount = 0;
-
-  // 既存の分析がないユーザーをフィルタリング
-  const itemsToProcess: typeof watchlistItems = [];
-  for (const item of watchlistItems) {
-    const existing = await getUserAnalysisByRelease(env.DB, item.user_id, releaseId);
-    if (!existing) {
-      itemsToProcess.push(item);
-    }
-  }
 
   // p-limit で並列処理（常に PARALLEL_LIMIT 並列を維持）
   const results = await Promise.all(
