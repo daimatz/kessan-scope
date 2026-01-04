@@ -216,6 +216,7 @@ earnings.get('/release/:releaseId', async (c) => {
         document_type: doc.document_type,
         document_title: doc.document_title,
         r2_key: doc.r2_key,
+        file_size: doc.file_size,
         announcement_date: doc.announcement_date,
       })),
     },

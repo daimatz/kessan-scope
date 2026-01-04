@@ -66,14 +66,15 @@ export async function createEarningsWithRelease(db: D1Database, data: {
   r2_key: string | null;
   document_url: string | null;
   document_title: string | null;
+  file_size: number | null;
   release_id: string;
   document_type: DocumentType;
 }): Promise<Earnings> {
   const id = generateId();
 
   await db.prepare(
-    `INSERT INTO earnings (id, stock_code, fiscal_year, fiscal_quarter, announcement_date, content_hash, r2_key, document_title, release_id, document_type)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO earnings (id, stock_code, fiscal_year, fiscal_quarter, announcement_date, content_hash, r2_key, document_title, file_size, release_id, document_type)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(
     id,
     data.stock_code,
@@ -83,6 +84,7 @@ export async function createEarningsWithRelease(db: D1Database, data: {
     data.content_hash,
     data.r2_key,
     data.document_title,
+    data.file_size,
     data.release_id,
     data.document_type
   ).run();

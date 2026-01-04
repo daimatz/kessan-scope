@@ -20,8 +20,9 @@ export const MAX_PDF_PAGES = 100;
 // Claude API の PDF サイズ上限（32MB）
 export const MAX_PDF_SIZE = 32 * 1024 * 1024;
 
-// 1回の分析で使用する最大PDF数（コスト考慮）
-export const MAX_PDFS_PER_ANALYSIS = 2;
+// 1回の分析で使用するドキュメントタイプごとの最大PDF数
+// 各タイプ内でファイルサイズ順に上位N件を選択
+export const MAX_PDFS_PER_TYPE = 2;
 
 // ========================================
 // TDnet

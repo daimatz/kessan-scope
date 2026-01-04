@@ -72,19 +72,27 @@ export default function ReleaseDetail() {
       return;
     }
 
-    // 前のリリースで選択していたドキュメントタイプと同じものを探す
+    // 前のリリースで選択していたドキュメントタイプと同じものを探す（ファイルサイズ最大を選択）
     if (lastDocumentType) {
-      const sameType = docs.find(d => d.document_type === lastDocumentType);
-      if (sameType) {
-        setSelectedDocumentId(sameType.id);
+      const sameTypeDocs = docs.filter(d => d.document_type === lastDocumentType);
+      if (sameTypeDocs.length > 0) {
+        const largest = sameTypeDocs.reduce((a, b) =>
+          (b.file_size ?? 0) > (a.file_size ?? 0) ? b : a
+        );
+        setSelectedDocumentId(largest.id);
         return;
       }
     }
 
-    // フォールバック: 決算説明資料 > 決算短信 > 最初のドキュメント
-    const presentation = docs.find(d => d.document_type === 'earnings_presentation');
-    const summary = docs.find(d => d.document_type === 'earnings_summary');
-    const newDoc = presentation || summary || docs[0];
+    // フォールバック: 決算説明資料 > 決算短信 > 最初のドキュメント（各タイプ内で最大サイズ）
+    const findLargest = (type: string) => {
+      const typeDocs = docs.filter(d => d.document_type === type);
+      if (typeDocs.length === 0) return null;
+      return typeDocs.reduce((a, b) => (b.file_size ?? 0) > (a.file_size ?? 0) ? b : a);
+    };
+    const newDoc = findLargest('earnings_presentation')
+      || findLargest('earnings_summary')
+      || docs[0];
     setSelectedDocumentId(newDoc.id);
     setLastDocumentType(newDoc.document_type);
   }, [data, selectedDocumentId, lastDocumentType]);
@@ -173,6 +181,20 @@ export default function ReleaseDetail() {
     ? `${release.fiscal_year}年 Q${release.fiscal_quarter}`
     : `${release.fiscal_year}年`;
 
+  // ドキュメントをソート：決算説明資料 > 決算短信 > 成長可能性資料、各タイプ内はファイルサイズ降順
+  const documentTypePriority: Record<string, number> = {
+    'earnings_presentation': 0,
+    'earnings_summary': 1,
+    'growth_potential': 2,
+  };
+  const sortedDocuments = [...release.documents].sort((a, b) => {
+    const priorityA = documentTypePriority[a.document_type] ?? 99;
+    const priorityB = documentTypePriority[b.document_type] ?? 99;
+    if (priorityA !== priorityB) return priorityA - priorityB;
+    // 同じタイプ内ではファイルサイズ降順
+    return (b.file_size ?? 0) - (a.file_size ?? 0);
+  });
+
   // 選択中のPDFのURL
   const selectedPdfUrl = selectedDocumentId
     ? earningsAPI.getReleasePdfUrlById(releaseId!, selectedDocumentId)
@@ -219,12 +241,12 @@ export default function ReleaseDetail() {
         {/* 左カラム：PDF + 分析 */}
         <div className="detail-left-column">
           {/* PDF表示セクション */}
-          {release.documents.length > 0 && (
+          {sortedDocuments.length > 0 && (
             <section className="section pdf-section">
               {/* コンパクトなヘッダー: タブ + 操作ボタン */}
               <div className="pdf-header">
                 <div className="document-tabs">
-                  {release.documents.map((doc) => (
+                  {sortedDocuments.map((doc) => (
                     <button
                       key={doc.id}
                       className={`document-tab ${selectedDocumentId === doc.id ? 'active' : ''}`}

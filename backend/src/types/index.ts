@@ -86,6 +86,7 @@ export interface Earnings {
   content_hash: string | null;
   r2_key: string | null;
   document_title: string | null;
+  file_size: number | null;
   raw_data: string | null;
   summary: string | null;
   highlights: string | null;

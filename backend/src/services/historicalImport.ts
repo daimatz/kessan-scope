@@ -95,6 +95,7 @@ async function processDocument(
       r2_key: storedPdf.r2Key,
       document_url: doc.pdfUrl,
       document_title: doc.title,
+      file_size: storedPdf.fileSize,
       release_id: release.id,
       document_type: documentType,
     });

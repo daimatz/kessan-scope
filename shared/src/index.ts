@@ -86,6 +86,7 @@ export const ReleaseDocumentSchema = z.object({
   document_type: DocumentTypeSchema,
   document_title: z.string().nullable(),
   r2_key: z.string().nullable(),
+  file_size: z.number().nullable(),
   announcement_date: z.string(),
 });
 export type ReleaseDocument = z.infer<typeof ReleaseDocumentSchema>;

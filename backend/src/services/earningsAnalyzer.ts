@@ -22,7 +22,7 @@ import {
   PARALLEL_LIMIT,
   MAX_PDF_PAGES,
   MAX_PDF_SIZE,
-  MAX_PDFS_PER_ANALYSIS,
+  MAX_PDFS_PER_TYPE,
 } from '../constants';
 
 const limit = pLimit(PARALLEL_LIMIT);
@@ -69,6 +69,7 @@ const DOCUMENT_TYPE_PRIORITY: DocumentType[] = [
 ];
 
 // リリースからPDFドキュメントを取得するヘルパー
+// 各ドキュメントタイプごとにファイルサイズ順で上位N件を選択
 async function getPdfDocumentsForRelease(
   env: Env,
   releaseId: string
@@ -79,23 +80,34 @@ async function getPdfDocumentsForRelease(
     return [];
   }
 
-  // ドキュメントタイプの優先順位でソート
-  const sortedDocs = [...documents].sort((a, b) => {
-    const priorityA = DOCUMENT_TYPE_PRIORITY.indexOf(a.document_type as DocumentType);
-    const priorityB = DOCUMENT_TYPE_PRIORITY.indexOf(b.document_type as DocumentType);
-    // 優先順位リストにない場合は後ろに
-    const effectiveA = priorityA === -1 ? 999 : priorityA;
-    const effectiveB = priorityB === -1 ? 999 : priorityB;
-    return effectiveA - effectiveB;
-  });
+  // r2_keyがあるドキュメントのみ対象
+  const docsWithR2Key = documents.filter((doc) => doc.r2_key !== null);
 
-  // 最大PDF数まで取得（コスト考慮）
-  const targetDocs = sortedDocs.slice(0, MAX_PDFS_PER_ANALYSIS);
+  // ドキュメントタイプごとにグループ化
+  const docsByType = new Map<DocumentType, typeof docsWithR2Key>();
+  for (const doc of docsWithR2Key) {
+    const type = doc.document_type as DocumentType;
+    if (!docsByType.has(type)) {
+      docsByType.set(type, []);
+    }
+    docsByType.get(type)!.push(doc);
+  }
 
-  // PDFを取得（並列）- r2_keyがあるドキュメントのみ
-  const docsWithR2Key = targetDocs.filter((doc) => doc.r2_key !== null);
+  // 各タイプ内でファイルサイズ順（大きい順）にソートし、上位N件を選択
+  const targetDocs: typeof docsWithR2Key = [];
+  for (const type of DOCUMENT_TYPE_PRIORITY) {
+    const docsOfType = docsByType.get(type);
+    if (!docsOfType) continue;
+
+    // ファイルサイズ降順でソート（nullは0として扱う）
+    const sorted = [...docsOfType].sort((a, b) => (b.file_size ?? 0) - (a.file_size ?? 0));
+    // 上位N件を追加
+    targetDocs.push(...sorted.slice(0, MAX_PDFS_PER_TYPE));
+  }
+
+  // PDFを取得（並列）
   const pdfResults = await Promise.all(
-    docsWithR2Key.map(async (doc) => {
+    targetDocs.map(async (doc) => {
       try {
         const pdfBuffer = await getPdfFromR2(env.PDF_BUCKET, doc.r2_key!);
         if (!pdfBuffer) {
@@ -103,13 +115,13 @@ async function getPdfDocumentsForRelease(
           return null;
         }
 
-        // サイズチェック
+        // サイズチェック（32MB超は除外）
         if (pdfBuffer.byteLength > MAX_PDF_SIZE) {
           console.log(`PDF too large (${(pdfBuffer.byteLength / 1024 / 1024).toFixed(1)}MB), skipping: ${doc.r2_key}`);
           return null;
         }
 
-        // ページ数制限
+        // ページ数制限（100ページ超は切り詰め）
         const truncatedBuffer = await truncatePdfIfNeeded(pdfBuffer);
 
         return {

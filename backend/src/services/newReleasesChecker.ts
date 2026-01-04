@@ -131,6 +131,7 @@ export async function checkNewReleases(env: Env): Promise<{ checked: number; imp
         r2_key: storedPdf.r2Key,
         document_url: doc.document_url,
         document_title: doc.title,
+        file_size: storedPdf.fileSize,
         release_id: release.id,
         document_type: documentType,
       });

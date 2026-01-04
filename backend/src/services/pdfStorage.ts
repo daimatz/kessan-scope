@@ -5,6 +5,7 @@ export interface StoredPdf {
   contentHash: string;  // MD5 ハッシュ
   r2Key: string;        // R2 オブジェクトキー
   buffer: ArrayBuffer;  // PDF データ
+  fileSize: number;     // ファイルサイズ（バイト）
 }
 
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
@@ -72,6 +73,7 @@ export async function storePdf(
     contentHash,
     r2Key,
     buffer,
+    fileSize: buffer.byteLength,
   };
 }
 
