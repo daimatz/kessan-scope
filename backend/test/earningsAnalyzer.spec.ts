@@ -125,7 +125,7 @@ describe('earningsAnalyzer', () => {
       expect(dbQueries.updateEarningsReleaseAnalysis).toHaveBeenCalled();
     });
 
-    it('ウォッチしているユーザーに通知を送る', async () => {
+    it('分析は通知を送らない（通知は呼び出し元の責任）', async () => {
       vi.mocked(dbQueries.getEarningsReleaseById).mockResolvedValue(mockRelease);
       vi.mocked(dbQueries.getDocumentsForRelease).mockResolvedValue([
         {
@@ -144,24 +144,15 @@ describe('earningsAnalyzer', () => {
           created_at: '2025-01-01',
         },
       ]);
-      vi.mocked(dbQueries.getUsersToNotifyForRelease).mockResolvedValue([
-        {
-          user_id: 'user-1',
-          email: 'user@example.com',
-          name: 'Test User',
-          stock_name: 'トヨタ自動車',
-          analysis_id: 'analysis-1',
-        },
-      ]);
       const env = createMockEnv();
 
-      await analyzeEarningsRelease(env, 'release-123');
+      const result = await analyzeEarningsRelease(env, 'release-123');
 
-      // 通知が送られたことを確認
-      expect(dbQueries.markUserReleaseNotified).toHaveBeenCalledWith(
-        expect.anything(),
-        'analysis-1'
-      );
+      // 分析は成功する
+      expect(result).not.toBeNull();
+      // 通知関連のDBメソッドは呼ばれない
+      expect(dbQueries.getUsersToNotifyForRelease).not.toHaveBeenCalled();
+      expect(dbQueries.markUserReleaseNotified).not.toHaveBeenCalled();
     });
 
     it('カスタムプロンプトがあるユーザーにはカスタム分析を生成する', async () => {

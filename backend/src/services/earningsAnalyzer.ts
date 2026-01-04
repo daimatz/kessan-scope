@@ -144,6 +144,7 @@ async function getPdfDocumentsForRelease(
 }
 
 // EarningsRelease に対して分析を実行（複数PDF対応）
+// 通知は行わない。必要に応じて呼び出し元で sendNewReleaseNotifications を使う
 export async function analyzeEarningsRelease(
   env: Env,
   releaseId: string
@@ -244,14 +245,11 @@ export async function analyzeEarningsRelease(
 
   console.log(`Release analysis complete: ${customAnalysisCount} custom analyses generated`);
 
-  // 通知メールを送信
-  await sendNewReleaseNotifications(env, release, summary);
-
   return { summary, customAnalysisCount };
 }
 
 // 新着決算の通知メールを送信
-async function sendNewReleaseNotifications(
+export async function sendNewReleaseNotifications(
   env: Env,
   release: EarningsRelease,
   summary: EarningsSummary

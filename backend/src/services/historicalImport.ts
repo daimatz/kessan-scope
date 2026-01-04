@@ -171,6 +171,7 @@ export async function processImportBatch(
   );
 
   // リリースごとに分析を実行（p-limit で並列処理）
+  // 初回インポート時は個別通知を送らない（最後に完了通知のみ送信）
   console.log(`Analyzing ${releasesToAnalyze.size} releases...`);
   await Promise.all(
     Array.from(releasesToAnalyze.entries()).map(([releaseId, isNewRelease]) =>

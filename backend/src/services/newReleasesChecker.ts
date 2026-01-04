@@ -9,8 +9,9 @@ import {
   checkUrlExists,
   getOrCreateEarningsRelease,
   getDocumentCountForRelease,
+  getEarningsReleaseById,
 } from '../db/queries';
-import { analyzeEarningsRelease } from './earningsAnalyzer';
+import { analyzeEarningsRelease, sendNewReleaseNotifications } from './earningsAnalyzer';
 import { fetchAndStorePdf } from './pdfStorage';
 import { classificationToDocumentType, determineReleaseType } from './documentUtils';
 import type { Env } from '../types';
@@ -152,7 +153,7 @@ export async function checkNewReleases(env: Env): Promise<{ checked: number; imp
     }
   }
 
-  // リリースごとに分析を実行
+  // リリースごとに分析を実行し、通知を送信
   console.log(`Analyzing ${releasesToAnalyze.size} releases...`);
   for (const [releaseId, isNewRelease] of releasesToAnalyze) {
     try {
@@ -161,6 +162,11 @@ export async function checkNewReleases(env: Env): Promise<{ checked: number; imp
         console.log(
           `Analyzed release ${releaseId}: ${result.customAnalysisCount} custom analyses${isNewRelease ? '' : ' (re-analyzed)'}`
         );
+        // 新着決算の通知を送信
+        const release = await getEarningsReleaseById(env.DB, releaseId);
+        if (release) {
+          await sendNewReleaseNotifications(env, release, result.summary);
+        }
       }
     } catch (error) {
       console.error(`Failed to analyze release ${releaseId}:`, error);

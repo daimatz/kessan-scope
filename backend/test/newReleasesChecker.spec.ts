@@ -66,8 +66,15 @@ vi.mock('../src/services/pdfStorage', () => ({
 // earningsAnalyzer のモック
 vi.mock('../src/services/earningsAnalyzer', () => ({
   analyzeEarningsRelease: vi.fn().mockResolvedValue({
+    summary: {
+      overview: 'テスト概要',
+      highlights: ['ハイライト1'],
+      lowlights: ['ローライト1'],
+      keyMetrics: { revenue: '100億円', operatingIncome: '10億円', netIncome: '5億円', yoyGrowth: '+10%' },
+    },
     customAnalysisCount: 1,
   }),
+  sendNewReleaseNotifications: vi.fn().mockResolvedValue(undefined),
 }));
 
 // DB queries のモック
@@ -83,6 +90,19 @@ vi.mock('../src/db/queries', () => ({
   }),
   getDocumentCountForRelease: vi.fn().mockResolvedValue(0),
   createEarningsWithRelease: vi.fn().mockResolvedValue(undefined),
+  getEarningsReleaseById: vi.fn().mockResolvedValue({
+    id: 'release-123',
+    release_type: 'quarterly_earnings',
+    stock_code: '7203',
+    fiscal_year: '2025',
+    fiscal_quarter: 2,
+    announcement_date: '2025-11-01',
+    summary: null,
+    highlights: null,
+    lowlights: null,
+    created_at: '2025-11-01',
+    updated_at: '2025-11-01',
+  }),
 }));
 
 // モック用の env
