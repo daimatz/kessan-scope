@@ -154,7 +154,7 @@ input:focus, textarea:focus, select:focus {
   border-radius: 16px;
   text-align: center;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-  max-width: 480px;
+  max-width: 520px;
   width: 90%;
 }
 
@@ -361,6 +361,27 @@ input:focus, textarea:focus, select:focus {
   background: var(--gray-50);
   text-decoration: none;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+/* Login - モバイル対応 */
+@media (max-width: 480px) {
+  .login-card {
+    padding: 32px 16px;
+    width: 95%;
+  }
+
+  .login-card h1 {
+    font-size: 26px;
+  }
+
+  .login-description {
+    font-size: 14px;
+  }
+
+  .google-login-btn {
+    padding: 14px 20px;
+    font-size: 14px;
+  }
 }
 
 /* Layout - ハンバーガーメニュー版 */
