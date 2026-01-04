@@ -10,6 +10,7 @@ export default function ReleaseDetail() {
   const queryClient = useQueryClient();
   const [message, setMessage] = useState('');
   const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
+  const [lastDocumentType, setLastDocumentType] = useState<string | null>(null);
   const [showPdf, setShowPdf] = useState(true); // デフォルトで表示
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
@@ -53,15 +54,40 @@ export default function ReleaseDetail() {
     enabled: !!releaseId,
   });
 
-  // 優先順位でドキュメントを選択（決算説明資料 > 決算短信 > 最初のドキュメント）
+  // ドキュメントを選択（前のページと同じ種類があればそれを、なければ優先順位で選択）
   useEffect(() => {
-    if (data?.release.documents.length && !selectedDocumentId) {
-      const docs = data.release.documents;
-      const presentation = docs.find(d => d.document_type === 'earnings_presentation');
-      const summary = docs.find(d => d.document_type === 'earnings_summary');
-      setSelectedDocumentId(presentation?.id || summary?.id || docs[0].id);
+    if (!data?.release.documents.length) return;
+
+    const docs = data.release.documents;
+
+    // 現在選択中のドキュメントがこのリリースに存在するかチェック
+    const currentDoc = selectedDocumentId
+      ? docs.find(d => d.id === selectedDocumentId)
+      : null;
+
+    if (currentDoc) {
+      // 同じドキュメントIDが存在すればそのまま（同じリリース内での切り替え）
+      // ドキュメントタイプを記録
+      setLastDocumentType(currentDoc.document_type);
+      return;
     }
-  }, [data, selectedDocumentId]);
+
+    // 前のリリースで選択していたドキュメントタイプと同じものを探す
+    if (lastDocumentType) {
+      const sameType = docs.find(d => d.document_type === lastDocumentType);
+      if (sameType) {
+        setSelectedDocumentId(sameType.id);
+        return;
+      }
+    }
+
+    // フォールバック: 決算説明資料 > 決算短信 > 最初のドキュメント
+    const presentation = docs.find(d => d.document_type === 'earnings_presentation');
+    const summary = docs.find(d => d.document_type === 'earnings_summary');
+    const newDoc = presentation || summary || docs[0];
+    setSelectedDocumentId(newDoc.id);
+    setLastDocumentType(newDoc.document_type);
+  }, [data, selectedDocumentId, lastDocumentType]);
 
   // チャットメッセージが更新されたら自動スクロール（最下部付近にいる場合のみ）
   useEffect(() => {
@@ -202,7 +228,10 @@ export default function ReleaseDetail() {
                     <button
                       key={doc.id}
                       className={`document-tab ${selectedDocumentId === doc.id ? 'active' : ''}`}
-                      onClick={() => setSelectedDocumentId(doc.id)}
+                      onClick={() => {
+                        setSelectedDocumentId(doc.id);
+                        setLastDocumentType(doc.document_type);
+                      }}
                       title={doc.document_title || getDocumentTypeLabel(doc.document_type)}
                     >
                       {doc.document_title
