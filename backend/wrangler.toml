@@ -68,3 +68,9 @@ queue = "kessan-scope-import"
 max_batch_size = 1
 max_concurrency = 1
 max_retries = 3
+
+[env.production.observability]
+[env.production.observability.logs]
+enabled = true
+head_sampling_rate = 1
+invocation_logs = true
