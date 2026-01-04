@@ -4,13 +4,12 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { earningsAPI, chatAPI, getDocumentTypeLabel, parseCustomAnalysis } from '../api';
-import type { DocumentType } from '../api';
 
 export default function ReleaseDetail() {
   const { releaseId } = useParams<{ releaseId: string }>();
   const queryClient = useQueryClient();
   const [message, setMessage] = useState('');
-  const [selectedPdfType, setSelectedPdfType] = useState<DocumentType | null>(null);
+  const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
   const [showPdf, setShowPdf] = useState(true); // デフォルトで表示
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
@@ -56,13 +55,13 @@ export default function ReleaseDetail() {
 
   // 優先順位でドキュメントを選択（決算説明資料 > 決算短信 > 最初のドキュメント）
   useEffect(() => {
-    if (data?.release.documents.length && !selectedPdfType) {
+    if (data?.release.documents.length && !selectedDocumentId) {
       const docs = data.release.documents;
       const presentation = docs.find(d => d.document_type === 'earnings_presentation');
       const summary = docs.find(d => d.document_type === 'earnings_summary');
-      setSelectedPdfType(presentation?.document_type || summary?.document_type || docs[0].document_type);
+      setSelectedDocumentId(presentation?.id || summary?.id || docs[0].id);
     }
-  }, [data, selectedPdfType]);
+  }, [data, selectedDocumentId]);
 
   // チャットメッセージが更新されたら自動スクロール（最下部付近にいる場合のみ）
   useEffect(() => {
@@ -149,8 +148,8 @@ export default function ReleaseDetail() {
     : `${release.fiscal_year}年`;
 
   // 選択中のPDFのURL
-  const selectedPdfUrl = selectedPdfType
-    ? earningsAPI.getReleasePdfUrl(releaseId!, selectedPdfType)
+  const selectedPdfUrl = selectedDocumentId
+    ? earningsAPI.getReleasePdfUrlById(releaseId!, selectedDocumentId)
     : null;
 
   // 前後ナビゲーションのURL
@@ -202,10 +201,13 @@ export default function ReleaseDetail() {
                   {release.documents.map((doc) => (
                     <button
                       key={doc.id}
-                      className={`document-tab ${selectedPdfType === doc.document_type ? 'active' : ''}`}
-                      onClick={() => setSelectedPdfType(doc.document_type)}
+                      className={`document-tab ${selectedDocumentId === doc.id ? 'active' : ''}`}
+                      onClick={() => setSelectedDocumentId(doc.id)}
+                      title={doc.document_title || getDocumentTypeLabel(doc.document_type)}
                     >
-                      {getDocumentTypeLabel(doc.document_type)}
+                      {doc.document_title
+                        ? (doc.document_title.length > 20 ? `${doc.document_title.substring(0, 20)}...` : doc.document_title)
+                        : getDocumentTypeLabel(doc.document_type)}
                     </button>
                   ))}
                 </div>

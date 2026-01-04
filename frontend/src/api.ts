@@ -134,6 +134,8 @@ export const earningsAPI = {
     fetchAPI<StockReleasesResponse>(`/api/earnings/releases/stock/${code}`),
   getReleasePdfUrl: (releaseId: string, documentType: string) =>
     `${API_BASE}/api/earnings/release/${releaseId}/pdf/${documentType}`,
+  getReleasePdfUrlById: (releaseId: string, documentId: string) =>
+    `${API_BASE}/api/earnings/release/${releaseId}/pdf/doc/${documentId}`,
 };
 
 // Chat API

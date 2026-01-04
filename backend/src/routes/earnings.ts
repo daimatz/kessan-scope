@@ -282,4 +282,45 @@ earnings.get('/release/:releaseId/pdf/:documentType', async (c) => {
   });
 });
 
+// ドキュメントIDで個別PDF取得（同じdocument_typeの複数ドキュメント対応）
+earnings.get('/release/:releaseId/pdf/doc/:documentId', async (c) => {
+  const userId = c.get('userId');
+  const releaseId = c.req.param('releaseId');
+  const documentId = c.req.param('documentId');
+
+  const release = await getEarningsReleaseById(c.env.DB, releaseId);
+  if (!release) {
+    return c.json({ error: '決算発表が見つかりません' }, 404);
+  }
+
+  // 認可チェック: ユーザーのウォッチリストに含まれているか確認
+  const watchlistItem = await getWatchlistItemByUserAndStock(c.env.DB, userId, release.stock_code);
+  if (!watchlistItem) {
+    return c.json({ error: 'この銘柄へのアクセス権がありません' }, 403);
+  }
+
+  const documents = await getDocumentsForRelease(c.env.DB, releaseId);
+  const targetDoc = documents.find(d => d.id === documentId);
+
+  if (!targetDoc || !targetDoc.r2_key) {
+    return c.json({ error: 'PDFが見つかりません' }, 404);
+  }
+
+  // R2からPDFを取得
+  const object = await c.env.PDF_BUCKET.get(targetDoc.r2_key);
+  if (!object) {
+    return c.json({ error: 'PDFが見つかりません' }, 404);
+  }
+
+  const quarterStr = release.fiscal_quarter ? `Q${release.fiscal_quarter}` : '';
+  const fileName = `${release.stock_code}_${release.fiscal_year}${quarterStr}_${targetDoc.document_type}.pdf`;
+
+  return new Response(object.body, {
+    headers: {
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `inline; filename="${fileName}"`,
+    },
+  });
+});
+
 export default earnings;
