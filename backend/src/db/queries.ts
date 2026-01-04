@@ -60,6 +60,10 @@ export {
   getDocumentsForReleases,
   getUserAnalysesForReleases,
   getAnalysisHistoryCountsForReleases,
+  // 通知関連
+  type UserToNotify,
+  getUsersToNotifyForRelease,
+  markUserReleaseNotified,
 } from './releaseQueries';
 
 // チャット関連

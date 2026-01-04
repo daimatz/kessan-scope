@@ -17,7 +17,10 @@ import {
   updateUserAnalysisForRelease,
   saveCustomAnalysisForRelease,
   findCachedAnalysisForRelease,
+  getUsersToNotifyForRelease,
+  markUserReleaseNotified,
 } from '../db/queries';
+import { MailerSendClient } from './mailersend';
 import {
   PARALLEL_LIMIT,
   MAX_PDF_PAGES,
@@ -240,7 +243,64 @@ export async function analyzeEarningsRelease(
 
   console.log(`Release analysis complete: ${customAnalysisCount} custom analyses generated`);
 
+  // 通知メールを送信
+  await sendNewReleaseNotifications(env, release, summary);
+
   return { summary, customAnalysisCount };
+}
+
+// 新着決算の通知メールを送信
+async function sendNewReleaseNotifications(
+  env: Env,
+  release: EarningsRelease,
+  summary: EarningsSummary
+): Promise<void> {
+  // 通知対象ユーザーを取得
+  const usersToNotify = await getUsersToNotifyForRelease(env.DB, release.stock_code, release.id);
+
+  if (usersToNotify.length === 0) {
+    console.log('No users to notify for release:', release.id);
+    return;
+  }
+
+  console.log(`Sending notifications to ${usersToNotify.length} users for release ${release.id}...`);
+
+  const mailer = new MailerSendClient(
+    env.MAILERSEND_API_KEY,
+    env.MAILERSEND_FROM_EMAIL
+  );
+
+  const quarterName = release.fiscal_quarter
+    ? `${release.fiscal_year}年 Q${release.fiscal_quarter}`
+    : `${release.fiscal_year}年`;
+
+  // 各ユーザーに通知メールを送信（逐次処理でレート制限対策）
+  for (const user of usersToNotify) {
+    try {
+      const stockName = user.stock_name || release.stock_code;
+      const detailUrl = `${env.FRONTEND_URL}/stocks/${release.stock_code}/releases/${release.id}`;
+
+      await mailer.sendEarningsNotification({
+        to: { email: user.email, name: user.name || undefined },
+        stockCode: release.stock_code,
+        stockName,
+        fiscalYear: release.fiscal_year,
+        fiscalQuarter: release.fiscal_quarter || 0,
+        highlights: summary.highlights,
+        lowlights: summary.lowlights,
+        detailUrl,
+      });
+
+      // 通知完了をマーク
+      await markUserReleaseNotified(env.DB, user.analysis_id);
+      console.log(`Notification sent to ${user.email} for ${stockName} ${quarterName}`);
+    } catch (error) {
+      console.error(`Failed to send notification to ${user.email}:`, error);
+      // 失敗しても他のユーザーへの通知は続行
+    }
+  }
+
+  console.log(`Notifications complete: ${usersToNotify.length} users`);
 }
 
 // 新しいドキュメントが追加された時にリリースを再分析

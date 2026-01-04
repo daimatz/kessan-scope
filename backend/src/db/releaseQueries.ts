@@ -368,3 +368,48 @@ export async function findCachedAnalysisForRelease(
 
   return history?.analysis ?? null;
 }
+
+// ========================================
+// 通知関連クエリ
+// ========================================
+
+// 通知対象ユーザー情報
+export interface UserToNotify {
+  user_id: string;
+  email: string;
+  name: string | null;
+  stock_name: string | null;
+  analysis_id: string;
+}
+
+// リリースに対して通知が必要なユーザーを取得
+// （その銘柄をウォッチしていて、まだ notified_at が NULL のユーザー）
+export async function getUsersToNotifyForRelease(
+  db: D1Database,
+  stockCode: string,
+  releaseId: string
+): Promise<UserToNotify[]> {
+  const result = await db.prepare(`
+    SELECT
+      u.id as user_id,
+      u.email,
+      u.name,
+      w.stock_name,
+      ura.id as analysis_id
+    FROM user_release_analysis ura
+    JOIN users u ON u.id = ura.user_id
+    JOIN watchlist w ON w.user_id = ura.user_id AND w.stock_code = ?
+    WHERE ura.release_id = ? AND ura.notified_at IS NULL
+  `).bind(stockCode, releaseId).all<UserToNotify>();
+  return result.results;
+}
+
+// 通知完了をマーク
+export async function markUserReleaseNotified(
+  db: D1Database,
+  analysisId: string
+): Promise<void> {
+  await db.prepare(
+    'UPDATE user_release_analysis SET notified_at = CURRENT_TIMESTAMP WHERE id = ?'
+  ).bind(analysisId).run();
+}
