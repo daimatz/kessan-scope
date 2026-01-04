@@ -10,13 +10,6 @@ export {
   getUserById,
   createUser,
   getUserByEmail,
-  deleteUser,
-  generateVerificationToken,
-  createUserWithPassword,
-  verifyEmailToken,
-  regenerateVerificationToken,
-  verifyPassword,
-  setUserPassword,
   linkGoogleAccount,
   updateUserSettings,
 } from './userQueries';

@@ -51,13 +51,8 @@ export interface User extends SharedUser {
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
 export class APIError extends Error {
-  requiresVerification?: boolean;
-  email?: string;
-
-  constructor(message: string, data?: { requiresVerification?: boolean; email?: string }) {
+  constructor(message: string) {
     super(message);
-    this.requiresVerification = data?.requiresVerification;
-    this.email = data?.email;
   }
 }
 
@@ -73,10 +68,7 @@ async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({ error: 'Request failed' }));
-    throw new APIError(errorData.error || 'Request failed', {
-      requiresVerification: errorData.requiresVerification,
-      email: errorData.email,
-    });
+    throw new APIError(errorData.error || 'Request failed');
   }
 
   return response.json();
@@ -87,21 +79,6 @@ export const authAPI = {
   getMe: () => fetchAPI<{ user: User | null }>('/api/auth/me'),
   logout: () => fetchAPI<{ success: boolean }>('/api/auth/logout', { method: 'POST' }),
   getGoogleAuthUrl: () => `${API_BASE}/api/auth/google`,
-  register: (data: { email: string; password: string; name?: string; confirmLinkPassword?: boolean }) =>
-    fetchAPI<{ user?: User; message?: string; requiresVerification?: boolean; existingGoogleAccount?: boolean; email?: string; passwordLinked?: boolean }>('/api/auth/register', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-  login: (data: { email: string; password: string }) =>
-    fetchAPI<{ user: User }>('/api/auth/login', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-  resendVerification: (email: string) =>
-    fetchAPI<{ message: string }>('/api/auth/resend-verification', {
-      method: 'POST',
-      body: JSON.stringify({ email }),
-    }),
 };
 
 // Watchlist API

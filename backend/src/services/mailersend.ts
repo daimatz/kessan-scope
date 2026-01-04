@@ -135,65 +135,6 @@ ${options.lowlights.map(l => `- ${l}`).join('\n')}
     });
   }
 
-  // メールアドレス確認メールを送信
-  async sendVerificationEmail(options: {
-    to: EmailRecipient;
-    verificationUrl: string;
-  }): Promise<void> {
-    const html = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; }
-    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-    .header { background: #1e40af; color: white; padding: 20px; border-radius: 8px 8px 0 0; }
-    .content { background: #f9fafb; padding: 20px; border: 1px solid #e5e7eb; }
-    .button { display: inline-block; background: #1e40af; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin-top: 20px; }
-    .footer { text-align: center; padding: 20px; color: #6b7280; font-size: 12px; }
-    .note { color: #6b7280; font-size: 14px; margin-top: 20px; }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <div class="header">
-      <h1 style="margin: 0;">📧 メールアドレスの確認</h1>
-    </div>
-    <div class="content">
-      <p>Kessan Scope へのご登録ありがとうございます。</p>
-      <p>以下のボタンをクリックして、メールアドレスを確認してください。</p>
-      <a href="${options.verificationUrl}" class="button">メールアドレスを確認する →</a>
-      <p class="note">ボタンが機能しない場合は、以下のURLをブラウザに貼り付けてください：</p>
-      <p style="word-break: break-all; font-size: 12px; color: #4b5563;">${options.verificationUrl}</p>
-      <p class="note">このリンクは24時間有効です。<br>心当たりがない場合は、このメールを無視してください。</p>
-    </div>
-    <div class="footer">
-      <p>Kessan Scope</p>
-    </div>
-  </div>
-</body>
-</html>
-`;
-
-    const text = `
-Kessan Scope へのご登録ありがとうございます。
-
-以下のリンクをクリックして、メールアドレスを確認してください：
-${options.verificationUrl}
-
-このリンクは24時間有効です。
-心当たりがない場合は、このメールを無視してください。
-`;
-
-    await this.sendEmail({
-      to: [options.to],
-      subject: '[Kessan Scope] メールアドレスの確認',
-      html,
-      text,
-    });
-  }
-
   // インポート完了通知メールを送信
   async sendImportCompleteEmail(options: {
     to: EmailRecipient;
