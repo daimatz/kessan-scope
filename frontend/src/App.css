@@ -2054,6 +2054,11 @@ input:focus, textarea:focus, select:focus {
   color: #2e7d32;
 }
 
+.doc-label-mid_term_plan {
+  background: #fff3e0;
+  color: #e65100;
+}
+
 .more-link {
   display: block;
   padding: 12px 20px;
