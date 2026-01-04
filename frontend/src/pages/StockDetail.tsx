@@ -137,6 +137,7 @@ export default function StockDetail() {
         ) : (
           <div className="earnings-table">
             <div className="earnings-table-header">
+              <span className="col-date">発表日</span>
               <span className="col-period">期間</span>
               <span className="col-docs">資料</span>
               <span className="col-status">ステータス</span>
@@ -147,6 +148,9 @@ export default function StockDetail() {
                 to={`/releases/${r.id}`}
                 className="earnings-table-row"
               >
+                <span className="col-date">
+                  {r.announcement_date || '-'}
+                </span>
                 <span className="col-period">
                   {r.fiscal_year}年{r.fiscal_quarter ? ` Q${r.fiscal_quarter}` : ''}
                 </span>

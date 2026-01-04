@@ -11,6 +11,7 @@ export interface ReleaseForDashboard {
   stock_name: string | null;
   fiscal_year: string;
   fiscal_quarter: number | null;
+  announcement_date: string | null;
   summary: string | null;
 }
 
@@ -19,7 +20,7 @@ export async function getReleasesForDashboard(db: D1Database, userId: string): P
     SELECT er.*, w.stock_name
     FROM earnings_release er
     INNER JOIN watchlist w ON er.stock_code = w.stock_code AND w.user_id = ?
-    ORDER BY er.fiscal_year DESC, er.fiscal_quarter DESC NULLS LAST
+    ORDER BY er.announcement_date DESC NULLS LAST
     LIMIT 50
   `).bind(userId).all<ReleaseForDashboard>();
   return result.results;
@@ -90,6 +91,13 @@ export async function createEarningsWithRelease(db: D1Database, data: {
   if (data.document_url) {
     await addDocumentUrl(db, id, data.document_url);
   }
+
+  // リリースの announcement_date を更新（最古の日付を保持）
+  await db.prepare(`
+    UPDATE earnings_release
+    SET announcement_date = ?
+    WHERE id = ? AND (announcement_date IS NULL OR announcement_date > ?)
+  `).bind(data.announcement_date, data.release_id, data.announcement_date).run();
 
   const earnings = await getEarningsById(db, id);
   if (!earnings) throw new Error('Failed to create earnings');

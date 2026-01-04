@@ -48,6 +48,7 @@ earnings.get('/releases', async (c) => {
       stock_name: r.stock_name,
       fiscal_year: r.fiscal_year,
       fiscal_quarter: r.fiscal_quarter,
+      announcement_date: r.announcement_date ?? null,
       has_summary: !!r.summary,
       has_custom_analysis: !!userAnalysis?.custom_analysis,
       notified_at: userAnalysis?.notified_at ?? null,
@@ -102,6 +103,7 @@ earnings.get('/releases/stock/:code', async (c) => {
       release_type: r.release_type,
       fiscal_year: r.fiscal_year,
       fiscal_quarter: r.fiscal_quarter,
+      announcement_date: r.announcement_date ?? null,
       has_summary: !!r.summary,
       has_custom_analysis: !!userAnalysis?.custom_analysis,
       analysis_history_count: historyCount,
@@ -194,8 +196,7 @@ earnings.get('/release/:releaseId', async (c) => {
   const { prev: prevRelease, next: nextRelease } = await getAdjacentReleases(
     c.env.DB,
     release.stock_code,
-    release.fiscal_year,
-    release.fiscal_quarter
+    releaseId
   );
 
   // zod で API レスポンス用にフィルタリング

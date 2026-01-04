@@ -83,6 +83,9 @@ export default function Dashboard() {
                 <div className="earnings-list">
                   {stockReleases.slice(0, 3).map((r) => (
                     <Link key={r.id} to={`/releases/${r.id}`} className="earnings-item">
+                      {r.announcement_date && (
+                        <span className="earnings-date">{r.announcement_date}</span>
+                      )}
                       <span className="earnings-period">
                         {r.fiscal_year}年{r.fiscal_quarter ? ` Q${r.fiscal_quarter}` : ''}
                       </span>

@@ -57,38 +57,42 @@ export async function getEarningsReleasesByStockCode(db: D1Database, stockCode: 
   const result = await db.prepare(`
     SELECT * FROM earnings_release
     WHERE stock_code = ?
-    ORDER BY fiscal_year DESC, fiscal_quarter DESC NULLS LAST
+    ORDER BY announcement_date DESC NULLS LAST
   `).bind(stockCode).all<EarningsRelease>();
   return result.results;
 }
 
 // 前後のリリースを取得（時系列ナビゲーション用）
-// allReleases は fiscal_year DESC, fiscal_quarter DESC でソートされているので、
-// next = より新しい = fiscal_year/quarter が大きい
-// prev = より古い = fiscal_year/quarter が小さい
+// announcement_date でソートし、前後のリリースを取得
 export async function getAdjacentReleases(
   db: D1Database,
   stockCode: string,
-  fiscalYear: string,
-  fiscalQuarter: number | null
+  releaseId: string
 ): Promise<{ prev: EarningsRelease | null; next: EarningsRelease | null }> {
+  // 現在のリリースの announcement_date を取得
+  const current = await db.prepare(`
+    SELECT announcement_date FROM earnings_release WHERE id = ?
+  `).bind(releaseId).first<{ announcement_date: string | null }>();
+
+  if (!current?.announcement_date) {
+    return { prev: null, next: null };
+  }
+
   // 次（より新しい）リリースを取得
   const nextResult = await db.prepare(`
     SELECT * FROM earnings_release
-    WHERE stock_code = ?
-      AND (fiscal_year > ? OR (fiscal_year = ? AND COALESCE(fiscal_quarter, 0) > COALESCE(?, 0)))
-    ORDER BY fiscal_year ASC, fiscal_quarter ASC NULLS FIRST
+    WHERE stock_code = ? AND announcement_date > ?
+    ORDER BY announcement_date ASC
     LIMIT 1
-  `).bind(stockCode, fiscalYear, fiscalYear, fiscalQuarter).first<EarningsRelease>();
+  `).bind(stockCode, current.announcement_date).first<EarningsRelease>();
 
   // 前（より古い）リリースを取得
   const prevResult = await db.prepare(`
     SELECT * FROM earnings_release
-    WHERE stock_code = ?
-      AND (fiscal_year < ? OR (fiscal_year = ? AND COALESCE(fiscal_quarter, 0) < COALESCE(?, 0)))
-    ORDER BY fiscal_year DESC, fiscal_quarter DESC NULLS LAST
+    WHERE stock_code = ? AND announcement_date < ?
+    ORDER BY announcement_date DESC
     LIMIT 1
-  `).bind(stockCode, fiscalYear, fiscalYear, fiscalQuarter).first<EarningsRelease>();
+  `).bind(stockCode, current.announcement_date).first<EarningsRelease>();
 
   return {
     prev: prevResult ?? null,
@@ -222,11 +226,11 @@ export async function getPastReleasesForChat(
     WHERE stock_code = ?
       AND id != ?
       AND release_type = 'quarterly_earnings'
-      AND (fiscal_year, COALESCE(fiscal_quarter, 0)) < (
-        SELECT fiscal_year, COALESCE(fiscal_quarter, 0)
+      AND announcement_date < (
+        SELECT announcement_date
         FROM earnings_release WHERE id = ?
       )
-    ORDER BY fiscal_year DESC, fiscal_quarter DESC
+    ORDER BY announcement_date DESC
     LIMIT ?
   `).bind(stockCode, currentReleaseId, currentReleaseId, limit).all<PastReleaseForChat>();
 

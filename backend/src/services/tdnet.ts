@@ -198,8 +198,14 @@ export class TdnetClient {
       throw new Error(`TDnet API error: ${response.status}`);
     }
 
-    const data = (await response.json()) as TdnetApiResponse;
-    return data.items.map((item) => item.Tdnet);
+    const text = await response.text();
+    try {
+      const data = JSON.parse(text) as TdnetApiResponse;
+      return data.items.map((item) => item.Tdnet);
+    } catch {
+      // TDnet may return non-JSON response for unsupported stock codes
+      throw new Error(`TDnet returned invalid response for ${code}: ${text.slice(0, 100)}`);
+    }
   }
 
   // 最新の適時開示一覧を取得

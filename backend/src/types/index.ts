@@ -70,6 +70,7 @@ export interface EarningsRelease {
   stock_code: string;
   fiscal_year: string;
   fiscal_quarter: number | null;
+  announcement_date: string | null;
   summary: string | null;
   highlights: string | null;
   lowlights: string | null;

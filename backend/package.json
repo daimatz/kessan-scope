@@ -11,8 +11,8 @@
     "test:run": "vitest run",
     "typecheck": "vitest --typecheck --run",
     "cf-typegen": "wrangler types",
-    "db:migrate": "wrangler d1 migrations apply kessan-scope-db",
-    "db:migrate:local": "wrangler d1 migrations apply kessan-scope-db --local"
+    "db:migrate:local": "wrangler d1 migrations apply kessan-scope-db --local",
+    "db:migrate:production": "wrangler d1 migrations apply kessan-scope-db --remote --env=production"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.2",
