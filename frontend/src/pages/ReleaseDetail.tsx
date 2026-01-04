@@ -18,6 +18,16 @@ export default function ReleaseDetail() {
   const [selectedAnalysis, setSelectedAnalysis] = useState<'standard' | 'current' | number>('standard');
   const chatMessagesRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const isNearBottomRef = useRef(true);
+
+  // スクロール位置が最下部付近かどうかをチェック
+  const checkIfNearBottom = useCallback(() => {
+    const container = chatMessagesRef.current;
+    if (!container) return;
+    const threshold = 50; // 最下部から50px以内なら「最下部」とみなす
+    const isNear = container.scrollHeight - container.scrollTop - container.clientHeight < threshold;
+    isNearBottomRef.current = isNear;
+  }, []);
 
   // テキストエリアの高さを自動調整（最大3行）
   const adjustTextareaHeight = useCallback(() => {
@@ -54,9 +64,9 @@ export default function ReleaseDetail() {
     }
   }, [data, selectedPdfType]);
 
-  // チャットメッセージが更新されたら自動スクロール
+  // チャットメッセージが更新されたら自動スクロール（最下部付近にいる場合のみ）
   useEffect(() => {
-    if (chatMessagesRef.current) {
+    if (chatMessagesRef.current && isNearBottomRef.current) {
       chatMessagesRef.current.scrollTop = chatMessagesRef.current.scrollHeight;
     }
   }, [chatData?.messages, streamingContent]);
@@ -73,6 +83,8 @@ export default function ReleaseDetail() {
     }
     setIsStreaming(true);
     setStreamingContent('');
+    // 新しいメッセージ送信時は自動スクロールを有効に
+    isNearBottomRef.current = true;
 
     // 楽観的にユーザーメッセージを表示
     const tempUserMessage = {
@@ -449,7 +461,7 @@ export default function ReleaseDetail() {
           <section className="section chat-section">
             <h2>質疑応答</h2>
             <div className="chat-container">
-              <div className="chat-messages" ref={chatMessagesRef}>
+              <div className="chat-messages" ref={chatMessagesRef} onScroll={checkIfNearBottom}>
                 {messages.length === 0 && !isStreaming ? (
                   <div className="empty">この決算について質問してみましょう</div>
                 ) : (
