@@ -21,6 +21,19 @@ interface EdinetCodeRow {
   corporateNumber: string;
 }
 
+/**
+ * 証券コードを正規化する
+ * EDINETでは5桁（固有名コード4桁 + 予備コード1桁）で格納されているため、
+ * 末尾1桁を除去して一般的な4桁形式に変換する
+ * 例: 30310 → 3031, 350A0 → 350A
+ */
+function normalizeStockCode(code: string): string {
+  if (code.length === 5) {
+    return code.slice(0, 4);
+  }
+  return code;
+}
+
 function parseCSV(csvText: string): EdinetCodeRow[] {
   const lines = csvText.split('\n');
   // Skip first line (metadata) and second line (header)
@@ -95,9 +108,10 @@ export async function updateStockList(env: Env): Promise<{ updated: number; tota
   // Parse CSV
   const rows = parseCSV(csvText);
 
-  // Filter for listed companies with valid stock codes
+  // Filter for listed companies with valid stock codes (5桁)
+  // 2024年以降の新形式（350A0など）にも対応するため、アルファベットも許可
   const listedStocks = rows.filter(
-    (row) => row.listingStatus === '上場' && row.stockCode && row.stockCode.match(/^\d{4,5}$/)
+    (row) => row.listingStatus === '上場' && row.stockCode && row.stockCode.match(/^[\dA-Z]{5}$/)
   );
 
   // Upsert to database in batches
@@ -114,7 +128,7 @@ export async function updateStockList(env: Env): Promise<{ updated: number; tota
            name = excluded.name,
            sector = excluded.sector,
            updated_at = CURRENT_TIMESTAMP`
-      ).bind(stock.stockCode, stock.name, null, stock.industry)
+      ).bind(normalizeStockCode(stock.stockCode), stock.name, null, stock.industry)
     );
 
     try {
