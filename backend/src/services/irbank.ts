@@ -24,10 +24,9 @@ export function toDocumentCandidate(doc: IrbankDocument): DocumentCandidate {
 export class IrbankClient {
   private userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
 
-  // 銘柄のドキュメントID一覧を取得
-  async getDocumentIds(stockCode: string): Promise<string[]> {
+  // /ir ページから全ドキュメント情報を取得（1リクエストのみ）
+  async getAllDocuments(stockCode: string, limit: number = 100): Promise<IrbankDocument[]> {
     const code = stockCode.slice(0, 4);
-    // /ir ページに全IRドキュメントのリストがある（トップページは一部のみ）
     const url = `https://irbank.net/${code}/ir`;
 
     const response = await fetch(url, {
@@ -39,65 +38,44 @@ export class IrbankClient {
     }
 
     const html = await response.text();
+    const documents: IrbankDocument[] = [];
 
-    // href="/7203/140120251105587596" パターンを抽出
-    const pattern = new RegExp(`href="/${code}/(\\d+)"`, 'g');
-    const matches = [...html.matchAll(pattern)];
-    const docIds = [...new Set(matches.map((m) => m[1]))];
+    // <dt>日付</dt> と <dd><a title="..." href="...">...</a></dd> のペアを抽出
+    // パターン: <dt>YYYY/MM/DD</dt> の後に続く <dd><a ... href="/code/docId" title="...">
+    // 注意: 1つの日付に複数のドキュメントがある場合がある
 
-    return docIds;
-  }
+    // まず全ての <a> タグで title と href を持つものを抽出
+    // title="銘柄コード 銘柄名 | タイトル（YYYY/MM/DD HH:MM提出）" href="/code/docId"
+    const linkPattern = new RegExp(
+      `<a[^>]*title="[^|]+\\|\\s*([^（]+)（(\\d{4}/\\d{2}/\\d{2})[^）]*）"[^>]*href="/${code}/(\\d+)"`,
+      'g'
+    );
 
-  // ドキュメントページからPDF URLを取得
-  async getDocumentInfo(stockCode: string, documentId: string): Promise<IrbankDocument | null> {
-    const code = stockCode.slice(0, 4);
-    const url = `https://irbank.net/${code}/${documentId}`;
+    for (const match of html.matchAll(linkPattern)) {
+      if (documents.length >= limit) break;
 
-    const response = await fetch(url, {
-      headers: { 'User-Agent': this.userAgent },
-    });
+      const title = match[1].trim();
+      const dateStr = match[2]; // YYYY/MM/DD
+      const documentId = match[3];
 
-    if (!response.ok) {
-      return null;
+      // 日付を YYYY-MM-DD 形式に変換
+      const pubdate = dateStr.replace(/\//g, '-');
+      // 日付を YYYYMMDD 形式に変換（PDF URL用）
+      const dateForUrl = dateStr.replace(/\//g, '');
+
+      // PDF URL を推測
+      const pdfUrl = `https://f.irbank.net/pdf/${dateForUrl}/${documentId}.pdf`;
+
+      documents.push({
+        documentId,
+        stockCode: code,
+        title,
+        pubdate,
+        pdfUrl,
+      });
     }
 
-    const html = await response.text();
-
-    // PDF URL を抽出: https://f.irbank.net/pdf/YYYYMMDD/documentId.pdf
-    const pdfMatch = html.match(/https:\/\/f\.irbank\.net\/pdf\/(\d{8})\/(\d+)\.pdf/);
-    if (!pdfMatch) {
-      return null;
-    }
-
-    // タイトルを抽出
-    // IRBankのtitleタグは「4385 メルカリ | FY2026.6 1Q決算説明資料（2025/11/07 15:30提出）」形式
-    let title = '';
-
-    const titleMatch = html.match(/<title>([^<]+)<\/title>/);
-    if (titleMatch) {
-      const fullTitle = titleMatch[1];
-      // "銘柄コード 銘柄名 | ドキュメントタイトル（日付）" から抽出
-      const pipeIndex = fullTitle.indexOf(' | ');
-      if (pipeIndex !== -1) {
-        // | 以降を取得し、末尾の（日付）を除去
-        title = fullTitle.slice(pipeIndex + 3).replace(/（\d{4}\/\d{2}\/\d{2}[^）]*）$/, '').trim();
-      } else {
-        // | がない場合は " - " で分割
-        title = fullTitle.split(' - ')[0].trim();
-      }
-    }
-
-    // 日付をYYYY-MM-DD形式に変換
-    const dateStr = pdfMatch[1];
-    const pubdate = `${dateStr.slice(0, 4)}-${dateStr.slice(4, 6)}-${dateStr.slice(6, 8)}`;
-
-    return {
-      documentId,
-      stockCode: code,
-      title,
-      pubdate,
-      pdfUrl: pdfMatch[0],
-    };
+    return documents;
   }
 
   // PDFをダウンロード
@@ -116,26 +94,5 @@ export class IrbankClient {
     }
 
     return response.arrayBuffer();
-  }
-
-  // 銘柄の全ドキュメント情報を取得（制限付き）
-  async getAllDocuments(stockCode: string, limit: number = 50): Promise<IrbankDocument[]> {
-    const docIds = await this.getDocumentIds(stockCode);
-    const documents: IrbankDocument[] = [];
-
-    for (const docId of docIds.slice(0, limit)) {
-      const doc = await this.getDocumentInfo(stockCode, docId);
-      if (doc) {
-        documents.push(doc);
-      }
-      // レート制限対策
-      await this.sleep(100);
-    }
-
-    return documents;
-  }
-
-  private sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }
