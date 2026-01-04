@@ -56,10 +56,10 @@ export const CustomAnalysisSummarySchema = z.object({
 });
 export type CustomAnalysisSummary = z.infer<typeof CustomAnalysisSummarySchema>;
 
-export const ReleaseTypeSchema = z.enum(['quarterly_earnings', 'growth_potential']);
+export const ReleaseTypeSchema = z.enum(['quarterly_earnings', 'growth_potential', 'mid_term_plan']);
 export type ReleaseType = z.infer<typeof ReleaseTypeSchema>;
 
-export const DocumentTypeSchema = z.enum(['earnings_summary', 'earnings_presentation', 'growth_potential']);
+export const DocumentTypeSchema = z.enum(['earnings_summary', 'earnings_presentation', 'growth_potential', 'mid_term_plan']);
 export type DocumentType = z.infer<typeof DocumentTypeSchema>;
 
 // ============================================
@@ -191,6 +191,8 @@ export function getDocumentTypeLabel(type: DocumentType): string {
       return '決算説明資料';
     case 'growth_potential':
       return '成長可能性資料';
+    case 'mid_term_plan':
+      return '中期経営計画';
   }
 }
 
@@ -200,6 +202,8 @@ export function getReleaseTypeLabel(type: ReleaseType): string {
       return '決算発表';
     case 'growth_potential':
       return '成長可能性';
+    case 'mid_term_plan':
+      return '中期経営計画';
   }
 }
 

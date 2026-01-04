@@ -5,9 +5,9 @@ import OpenAI from 'openai';
 import { LLM_BATCH_SIZE } from '../constants';
 
 export interface DocumentClassification {
-  document_type: 'earnings_summary' | 'earnings_presentation' | 'growth_potential' | 'other';
+  document_type: 'earnings_summary' | 'earnings_presentation' | 'growth_potential' | 'mid_term_plan' | 'other';
   fiscal_year: string | null;
-  fiscal_quarter: number | null; // 1-4 (通期は4), null は中計など
+  fiscal_quarter: number | null; // 1-4 (通期は4), null は成長可能性資料・中計など
   confidence: number;
   reasoning: string;
 }
@@ -18,7 +18,8 @@ const SYSTEM_PROMPT = `あなたは日本の上場企業のIR資料を分類す�
 ## 文書種類 (document_type)
 - earnings_summary: 決算短信（「決算短信」を含むタイトル）
 - earnings_presentation: 決算発表資料（決算説明資料、決算補足資料、決算報告、Fact Sheet、決算ハイライト、プレゼンテーション資料など）
-- growth_potential: 成長可能性の説明資料（中期経営計画、成長可能性、長期ビジョン、事業戦略、経営戦略など）
+- growth_potential: 成長可能性の説明資料（「成長可能性」を含むタイトル）
+- mid_term_plan: 中期経営計画（「中期経営計画」「中計」「長期ビジョン」「事業戦略」「経営戦略」など）
 - other: 上記以外（業績予想修正、配当予想、株式分割、人事など）
 
 ## 年度 (fiscal_year) - 具体例
@@ -50,7 +51,14 @@ const SYSTEM_PROMPT = `あなたは日本の上場企業のIR資料を分類す�
 - 第3四半期、3Q、Q3 → 3
 - 第4四半期、4Q、Q4、通期、期末、年度末、本決算 → 4
 - 「第X四半期」の記載がない決算短信/説明資料 → 4（通期と推定）
-- 中期経営計画など四半期に紐づかない資料 → null
+- 成長可能性資料など四半期に紐づかない資料 → null
+
+## 成長可能性資料・中期経営計画の年度特定
+- 成長可能性資料 (growth_potential) と中期経営計画 (mid_term_plan) は四半期決算のように頻繁に発表されないため、年に1つのスロットで管理します
+- タイトルに年度情報がある場合はその年度を使用
+- タイトルに年度情報がない場合は、発表日の年を fiscal_year として使用してください
+- 例: 発表日が2025-06-15の「成長可能性に関する説明資料」→ fiscal_year: "2025", fiscal_quarter: null
+- 例: 発表日が2025-03-10の「中期経営計画」→ fiscal_year: "2025", fiscal_quarter: null
 
 正確に判定してください。`;
 
@@ -59,7 +67,7 @@ const CLASSIFICATION_SCHEMA = {
   properties: {
     document_type: {
       type: 'string' as const,
-      enum: ['earnings_summary', 'earnings_presentation', 'growth_potential', 'other'],
+      enum: ['earnings_summary', 'earnings_presentation', 'growth_potential', 'mid_term_plan', 'other'],
       description: '文書の種類',
     },
     fiscal_year: {

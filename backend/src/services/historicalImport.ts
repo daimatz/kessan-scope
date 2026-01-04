@@ -78,7 +78,7 @@ async function processDocument(
       release_type: releaseType,
       stock_code: stockCode,
       fiscal_year: fiscalYear,
-      fiscal_quarter: releaseType === 'growth_potential' ? null : fiscalQuarter,
+      fiscal_quarter: (releaseType === 'growth_potential' || releaseType === 'mid_term_plan') ? null : fiscalQuarter,
     });
 
     // リリースに既にドキュメントがあるか確認（再分析判定用）

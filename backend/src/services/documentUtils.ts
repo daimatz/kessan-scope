@@ -12,6 +12,8 @@ export function classificationToDocumentType(classType: string): DocumentType | 
       return 'earnings_presentation';
     case 'growth_potential':
       return 'growth_potential';
+    case 'mid_term_plan':
+      return 'mid_term_plan';
     default:
       return null;
   }
@@ -21,6 +23,9 @@ export function classificationToDocumentType(classType: string): DocumentType | 
 export function determineReleaseType(docType: DocumentType): ReleaseType {
   if (docType === 'growth_potential') {
     return 'growth_potential';
+  }
+  if (docType === 'mid_term_plan') {
+    return 'mid_term_plan';
   }
   return 'quarterly_earnings';
 }

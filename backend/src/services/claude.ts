@@ -17,12 +17,13 @@ export class ClaudeService {
 
   // 複数PDFから決算内容を解析（事業家目線で戦略分析）
   async analyzeEarningsPdfs(
-    documents: Array<{ buffer: ArrayBuffer; type: 'earnings_summary' | 'earnings_presentation' | 'growth_potential' }>
+    documents: Array<{ buffer: ArrayBuffer; type: 'earnings_summary' | 'earnings_presentation' | 'growth_potential' | 'mid_term_plan' }>
   ): Promise<EarningsSummary> {
     const documentLabels: Record<string, string> = {
       'earnings_summary': '決算短信',
       'earnings_presentation': '決算説明資料',
       'growth_potential': '成長可能性資料',
+      'mid_term_plan': '中期経営計画',
     };
 
     const documentDescriptions = documents.map(d => documentLabels[d.type]).join('と');
@@ -118,13 +119,14 @@ ${documents.length > 1 ? '- 決算短信の数値と説明資料の経営方針�
 
   // カスタムプロンプトで追加分析 - 複数PDF版
   async analyzeWithCustomPromptMultiplePdfs(
-    documents: Array<{ buffer: ArrayBuffer; type: 'earnings_summary' | 'earnings_presentation' | 'growth_potential' }>,
+    documents: Array<{ buffer: ArrayBuffer; type: 'earnings_summary' | 'earnings_presentation' | 'growth_potential' | 'mid_term_plan' }>,
     customPrompt: string
   ): Promise<CustomAnalysisSummary> {
     const documentLabels: Record<string, string> = {
       'earnings_summary': '決算短信',
       'earnings_presentation': '決算説明資料',
       'growth_potential': '成長可能性資料',
+      'mid_term_plan': '中期経営計画',
     };
 
     const documentDescriptions = documents.map(d => documentLabels[d.type]).join('と');
@@ -244,7 +246,7 @@ ${documents.length > 1 ? '- 複数資料の情報を組み合わせて包括的�
 
   // チャット用のシステムプロンプトとメッセージを構築 - 複数PDF対応
   private buildChatWithPdfsParams(
-    documents: Array<{ buffer: ArrayBuffer; type: 'earnings_summary' | 'earnings_presentation' | 'growth_potential' }>,
+    documents: Array<{ buffer: ArrayBuffer; type: 'earnings_summary' | 'earnings_presentation' | 'growth_potential' | 'mid_term_plan' }>,
     currentEarnings: { fiscal_year: string; fiscal_quarter: number | null; stock_code: string },
     pastEarningsContext: string,
     chatHistory: Array<{ role: 'user' | 'assistant'; content: string }>,
@@ -254,6 +256,7 @@ ${documents.length > 1 ? '- 複数資料の情報を組み合わせて包括的�
       'earnings_summary': '決算短信',
       'earnings_presentation': '決算説明資料',
       'growth_potential': '成長可能性資料',
+      'mid_term_plan': '中期経営計画',
     };
 
     const documentDescriptions = documents.map(d => documentLabels[d.type]).join('と');
@@ -366,7 +369,7 @@ ${pastEarningsContext ? `【過去の決算履歴（経緯把握用）】\n${pas
 
   // 決算についてのチャット - 複数PDF対応（非ストリーミング）
   async chatWithPdfs(
-    documents: Array<{ buffer: ArrayBuffer; type: 'earnings_summary' | 'earnings_presentation' | 'growth_potential' }>,
+    documents: Array<{ buffer: ArrayBuffer; type: 'earnings_summary' | 'earnings_presentation' | 'growth_potential' | 'mid_term_plan' }>,
     currentEarnings: { fiscal_year: string; fiscal_quarter: number | null; stock_code: string },
     pastEarningsContext: string,
     chatHistory: Array<{ role: 'user' | 'assistant'; content: string }>,
@@ -424,7 +427,7 @@ ${pastEarningsContext ? `【過去の決算履歴（経緯把握用）】\n${pas
 
   // 決算についてのチャット - 複数PDF対応（ストリーミング）
   async *chatWithPdfsStream(
-    documents: Array<{ buffer: ArrayBuffer; type: 'earnings_summary' | 'earnings_presentation' | 'growth_potential' }>,
+    documents: Array<{ buffer: ArrayBuffer; type: 'earnings_summary' | 'earnings_presentation' | 'growth_potential' | 'mid_term_plan' }>,
     currentEarnings: { fiscal_year: string; fiscal_quarter: number | null; stock_code: string },
     pastEarningsContext: string,
     chatHistory: Array<{ role: 'user' | 'assistant'; content: string }>,

@@ -181,11 +181,12 @@ export default function ReleaseDetail() {
     ? `${release.fiscal_year}年 Q${release.fiscal_quarter}`
     : `${release.fiscal_year}年`;
 
-  // ドキュメントをソート：決算説明資料 > 決算短信 > 成長可能性資料、各タイプ内はファイルサイズ降順
+  // ドキュメントをソート：決算説明資料 > 決算短信 > 成長可能性資料 > 中期経営計画、各タイプ内はファイルサイズ降順
   const documentTypePriority: Record<string, number> = {
     'earnings_presentation': 0,
     'earnings_summary': 1,
     'growth_potential': 2,
+    'mid_term_plan': 3,
   };
   const sortedDocuments = [...release.documents].sort((a, b) => {
     const priorityA = documentTypePriority[a.document_type] ?? 99;

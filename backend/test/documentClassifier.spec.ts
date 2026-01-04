@@ -43,11 +43,19 @@ vi.mock('openai', () => {
               };
             } else if (userMessage.includes('中期経営計画')) {
               response = {
-                document_type: 'growth_potential',
+                document_type: 'mid_term_plan',
                 fiscal_year: '2025',
                 fiscal_quarter: null,
                 confidence: 0.9,
                 reasoning: '中期経営計画を含むタイトル',
+              };
+            } else if (userMessage.includes('成長可能性')) {
+              response = {
+                document_type: 'growth_potential',
+                fiscal_year: '2025',
+                fiscal_quarter: null,
+                confidence: 0.9,
+                reasoning: '成長可能性を含むタイトル',
               };
             }
 
@@ -85,6 +93,12 @@ describe('DocumentClassifier', () => {
 
     it('中期経営計画を正しく分類', async () => {
       const result = await classifier.classify('中期経営計画（2024-2027）');
+      expect(result.document_type).toBe('mid_term_plan');
+      expect(result.fiscal_quarter).toBeNull();
+    });
+
+    it('成長可能性資料を正しく分類', async () => {
+      const result = await classifier.classify('成長可能性に関する説明資料');
       expect(result.document_type).toBe('growth_potential');
       expect(result.fiscal_quarter).toBeNull();
     });

@@ -69,6 +69,7 @@ const DOCUMENT_TYPE_PRIORITY: DocumentType[] = [
   'earnings_summary',       // 決算短信を最優先
   'earnings_presentation',  // 決算説明資料
   'growth_potential',       // 成長可能性資料
+  'mid_term_plan',          // 中期経営計画
 ];
 
 // リリースからPDFドキュメントを取得するヘルパー

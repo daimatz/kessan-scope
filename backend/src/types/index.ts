@@ -58,8 +58,8 @@ export interface WatchlistItem {
   created_at: string;
 }
 
-export type ReleaseType = 'quarterly_earnings' | 'growth_potential';
-export type DocumentType = 'earnings_summary' | 'earnings_presentation' | 'growth_potential';
+export type ReleaseType = 'quarterly_earnings' | 'growth_potential' | 'mid_term_plan';
+export type DocumentType = 'earnings_summary' | 'earnings_presentation' | 'growth_potential' | 'mid_term_plan';
 
 export interface EarningsRelease {
   id: string;
