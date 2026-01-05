@@ -108,7 +108,7 @@ export class MailerSendClient {
     </div>
     <div class="footer">
       <p>Kessan Scope</p>
-      <p>このメールはウォッチリストに基づいて自動送信されています。</p>
+      <p>このメールは分析リストに基づいて自動送信されています。</p>
     </div>
   </div>
 </body>

@@ -10,7 +10,7 @@ interface Stock {
 
 const stocks = new Hono<{ Bindings: Env }>();
 
-// 銘柄検索
+// 企業検索
 stocks.get('/search', async (c) => {
   const query = c.req.query('q')?.trim();
 
@@ -18,7 +18,7 @@ stocks.get('/search', async (c) => {
     return c.json({ stocks: [] });
   }
 
-  // 証券コードまたは銘柄名で検索
+  // 証券コードまたは企業名で検索
   const results = await c.env.DB.prepare(
     `SELECT code, name, market, sector FROM stocks
      WHERE code LIKE ? OR name LIKE ?

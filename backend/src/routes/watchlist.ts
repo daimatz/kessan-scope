@@ -13,7 +13,7 @@ import { WatchlistItemSchema } from '@kessan-scope/shared';
 
 const watchlist = new Hono<{ Bindings: Env; Variables: { userId: string } }>();
 
-// ウォッチリスト取得
+// 分析リスト取得
 watchlist.get('/', async (c) => {
   const userId = c.get('userId');
   const items = await getWatchlist(c.env.DB, userId);
@@ -21,7 +21,7 @@ watchlist.get('/', async (c) => {
   return c.json({ items: items.map(item => WatchlistItemSchema.parse(item)) });
 });
 
-// 銘柄追加
+// 企業追加
 watchlist.post('/', async (c) => {
   const userId = c.get('userId');
   const body = await c.req.json<{
@@ -70,26 +70,26 @@ watchlist.post('/', async (c) => {
   } catch (error) {
     // UNIQUE constraint violation
     if (error instanceof Error && error.message.includes('UNIQUE')) {
-      return c.json({ error: 'この銘柄は既にウォッチリストにあります' }, 409);
+      return c.json({ error: 'この企業は既に分析リストにあります' }, 409);
     }
     throw error;
   }
 });
 
-// 銘柄削除
+// 企業削除
 watchlist.delete('/:id', async (c) => {
   const userId = c.get('userId');
   const id = c.req.param('id');
 
   const deleted = await removeFromWatchlist(c.env.DB, id, userId);
   if (!deleted) {
-    return c.json({ error: '銘柄が見つかりません' }, 404);
+    return c.json({ error: '企業が見つかりません' }, 404);
   }
 
   return c.json({ success: true });
 });
 
-// 銘柄設定更新
+// 企業設定更新
 watchlist.patch('/:id', async (c) => {
   const userId = c.get('userId');
   const id = c.req.param('id');
@@ -104,7 +104,7 @@ watchlist.patch('/:id', async (c) => {
   });
 
   if (!updated) {
-    return c.json({ error: '銘柄が見つかりません' }, 404);
+    return c.json({ error: '企業が見つかりません' }, 404);
   }
 
   return c.json({ success: true });
@@ -115,10 +115,10 @@ watchlist.post('/:id/regenerate', async (c) => {
   const userId = c.get('userId');
   const id = c.req.param('id');
 
-  // ウォッチリストアイテムを取得
+  // 分析リストアイテムを取得
   const item = await getWatchlistItemById(c.env.DB, id, userId);
   if (!item) {
-    return c.json({ error: '銘柄が見つかりません' }, 404);
+    return c.json({ error: '企業が見つかりません' }, 404);
   }
 
   if (!item.custom_prompt) {

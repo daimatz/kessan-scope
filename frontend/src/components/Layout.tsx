@@ -19,7 +19,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const navItems = [
     { path: '/', label: 'ダッシュボード', icon: '🏠' },
-    { path: '/watchlist', label: 'ウォッチリスト', icon: '👁️' },
+    { path: '/watchlist', label: '分析リスト', icon: '👁️' },
     { path: '/settings', label: '設定', icon: '⚙️' },
   ];
 

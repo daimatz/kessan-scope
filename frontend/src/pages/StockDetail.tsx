@@ -56,7 +56,7 @@ export default function StockDetail() {
   if (error || !data) {
     return (
       <div className="page">
-        <div className="error">銘柄データが見つかりません</div>
+        <div className="error">企業データが見つかりません</div>
       </div>
     );
   }

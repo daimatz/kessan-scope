@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { earningsAPI, getDocumentTypeLabel, type DashboardRelease } from '../api';
 
-// 銘柄ごとにグループ化
+// 企業ごとにグループ化
 function groupByStock(releases: DashboardRelease[]): Map<string, DashboardRelease[]> {
   const grouped = new Map<string, DashboardRelease[]>();
   for (const r of releases) {
@@ -49,7 +49,7 @@ export default function Dashboard() {
       <nav className="dashboard-nav">
         <Link to="/watchlist" className="dashboard-nav-item">
           <span className="nav-icon">👁️</span>
-          <span>ウォッチリスト</span>
+          <span>分析リスト</span>
         </Link>
         <Link to="/settings" className="dashboard-nav-item">
           <span className="nav-icon">⚙️</span>
@@ -61,7 +61,7 @@ export default function Dashboard() {
         <div className="empty-state">
           <p>決算データがありません</p>
           <p>
-            <Link to="/watchlist">ウォッチリストに銘柄を追加</Link>
+            <Link to="/watchlist">分析リストに企業を追加</Link>
             してください
           </p>
         </div>

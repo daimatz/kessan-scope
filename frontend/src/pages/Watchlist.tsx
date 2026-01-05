@@ -102,7 +102,7 @@ export default function Watchlist() {
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedStock) {
-      alert('銘柄を選択してください');
+      alert('企業を選択してください');
       return;
     }
     addMutation.mutate({
@@ -121,7 +121,7 @@ export default function Watchlist() {
   if (isLoading) {
     return (
       <div className="page">
-        <h1>ウォッチリスト</h1>
+        <h1>分析リスト</h1>
         <div className="loading">読み込み中...</div>
       </div>
     );
@@ -130,7 +130,7 @@ export default function Watchlist() {
   if (error) {
     return (
       <div className="page">
-        <h1>ウォッチリスト</h1>
+        <h1>分析リスト</h1>
         <div className="error">エラーが発生しました</div>
       </div>
     );
@@ -140,15 +140,15 @@ export default function Watchlist() {
 
   return (
     <div className="page">
-      <h1>ウォッチリスト</h1>
+      <h1>分析リスト</h1>
 
       <section className="section">
-        <h2>銘柄を追加</h2>
+        <h2>企業を追加</h2>
         <form onSubmit={handleAdd} className="add-form">
           <div className="stock-search" ref={dropdownRef}>
             <input
               type="text"
-              placeholder="証券コードまたは銘柄名で検索"
+              placeholder="証券コードまたは企業名で検索"
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value);
@@ -174,7 +174,7 @@ export default function Watchlist() {
             )}
             {showDropdown && searchResults.length === 0 && !isSearching && searchQuery.length >= 1 && (
               <div className="search-dropdown">
-                <div className="search-empty">該当する銘柄がありません</div>
+                <div className="search-empty">該当する企業がありません</div>
               </div>
             )}
           </div>
@@ -202,9 +202,9 @@ export default function Watchlist() {
       </section>
 
       <section className="section">
-        <h2>登録済み銘柄 ({items.length})</h2>
+        <h2>登録済み企業 ({items.length})</h2>
         {items.length === 0 ? (
-          <div className="empty-state">登録された銘柄はありません</div>
+          <div className="empty-state">登録された企業はありません</div>
         ) : (
           <div className="watchlist-items">
             {items.map((item) => (

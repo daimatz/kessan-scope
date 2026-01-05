@@ -64,7 +64,7 @@ earnings.get('/releases', async (c) => {
   return c.json({ releases: releasesWithDocs.map(r => DashboardReleaseSchema.parse(r)) });
 });
 
-// 銘柄別リリース履歴
+// 企業別リリース履歴
 earnings.get('/releases/stock/:code', async (c) => {
   const userId = c.get('userId');
   const code = c.req.param('code');
@@ -78,7 +78,7 @@ earnings.get('/releases/stock/:code', async (c) => {
 
   // 認可チェック: ユーザーのウォッチリストに含まれているか確認
   if (!watchlistItem) {
-    return c.json({ error: 'この銘柄へのアクセス権がありません' }, 403);
+    return c.json({ error: 'この企業へのアクセス権がありません' }, 403);
   }
 
   // リリース一覧を取得
@@ -142,7 +142,7 @@ earnings.get('/release/:releaseId', async (c) => {
 
   // 認可チェック: ユーザーのウォッチリストに含まれているか確認
   if (!watchlistItem) {
-    return c.json({ error: 'この銘柄へのアクセス権がありません' }, 403);
+    return c.json({ error: 'この企業へのアクセス権がありません' }, 403);
   }
 
   // リリースに紐づくドキュメント一覧を取得
@@ -257,7 +257,7 @@ earnings.get('/release/:releaseId/pdf/:documentType', async (c) => {
   // 認可チェック: ユーザーのウォッチリストに含まれているか確認（直接SQLで確認）
   const watchlistItem = await getWatchlistItemByUserAndStock(c.env.DB, userId, release.stock_code);
   if (!watchlistItem) {
-    return c.json({ error: 'この銘柄へのアクセス権がありません' }, 403);
+    return c.json({ error: 'この企業へのアクセス権がありません' }, 403);
   }
 
   const documents = await getDocumentsForRelease(c.env.DB, releaseId);
@@ -298,7 +298,7 @@ earnings.get('/release/:releaseId/pdf/doc/:documentId', async (c) => {
   // 認可チェック: ユーザーのウォッチリストに含まれているか確認
   const watchlistItem = await getWatchlistItemByUserAndStock(c.env.DB, userId, release.stock_code);
   if (!watchlistItem) {
-    return c.json({ error: 'この銘柄へのアクセス権がありません' }, 403);
+    return c.json({ error: 'この企業へのアクセス権がありません' }, 403);
   }
 
   const documents = await getDocumentsForRelease(c.env.DB, releaseId);
