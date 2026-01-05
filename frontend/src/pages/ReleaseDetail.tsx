@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkCjkFriendly from 'remark-cjk-friendly';
 import { earningsAPI, chatAPI, getDocumentTypeLabel, parseCustomAnalysis } from '../api';
 
 export default function ReleaseDetail() {
@@ -444,7 +445,7 @@ export default function ReleaseDetail() {
                   {customAnalysis.analysis && (
                     <div className="custom-analysis">
                       <h3>詳細分析</h3>
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{customAnalysis.analysis}</ReactMarkdown>
+                      <ReactMarkdown remarkPlugins={[remarkCjkFriendly, remarkGfm]}>{customAnalysis.analysis}</ReactMarkdown>
                     </div>
                   )}
                 </div>
@@ -498,7 +499,7 @@ export default function ReleaseDetail() {
                         {parsed.analysis && (
                           <div className="custom-analysis">
                             <h3>詳細分析</h3>
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{parsed.analysis}</ReactMarkdown>
+                            <ReactMarkdown remarkPlugins={[remarkCjkFriendly, remarkGfm]}>{parsed.analysis}</ReactMarkdown>
                           </div>
                         )}
                       </>
@@ -527,7 +528,7 @@ export default function ReleaseDetail() {
                         </div>
                         <div className="message-content">
                           {msg.role === 'assistant' ? (
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                            <ReactMarkdown remarkPlugins={[remarkCjkFriendly, remarkGfm]}>{msg.content}</ReactMarkdown>
                           ) : (
                             msg.content
                           )}
@@ -539,7 +540,7 @@ export default function ReleaseDetail() {
                         <div className="message-role">AI</div>
                         <div className="message-content">
                           {streamingContent ? (
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamingContent}</ReactMarkdown>
+                            <ReactMarkdown remarkPlugins={[remarkCjkFriendly, remarkGfm]}>{streamingContent}</ReactMarkdown>
                           ) : (
                             <span className="loading-dots">考え中...</span>
                           )}
