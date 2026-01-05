@@ -139,8 +139,8 @@ export default function ReleaseDetail() {
         onDelta: (content) => {
           setStreamingContent((prev) => prev + content);
         },
-        onDone: () => {
-          queryClient.invalidateQueries({ queryKey: ['releaseChat', releaseId] });
+        onDone: async () => {
+          await queryClient.invalidateQueries({ queryKey: ['releaseChat', releaseId] });
           setIsStreaming(false);
           setStreamingContent('');
         },
