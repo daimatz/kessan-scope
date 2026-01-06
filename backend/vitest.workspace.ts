@@ -5,7 +5,7 @@ export default defineWorkspace([
   {
     test: {
       name: 'node',
-      include: ['test/documentClassifier.spec.ts', 'test/newReleasesChecker.spec.ts', 'test/earningsAnalyzer.spec.ts', 'test/mailersend.spec.ts'],
+      include: ['test/documentClassifier.spec.ts', 'test/newReleasesChecker.spec.ts', 'test/earningsAnalyzer.spec.ts', 'test/mailgun.spec.ts'],
       environment: 'node',
     },
   },

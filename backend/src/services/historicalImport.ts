@@ -13,7 +13,7 @@ import {
 } from '../db/queries';
 import { analyzeEarningsRelease } from './earningsAnalyzer';
 import { fetchAndStorePdf } from './pdfStorage';
-import { MailerSendClient } from './mailersend';
+import { MailgunClient } from './mailgun';
 import { classificationToDocumentType, determineReleaseType } from './documentUtils';
 import { PARALLEL_LIMIT } from '../constants';
 import type { Env, ImportQueueMessage } from '../types';
@@ -220,9 +220,10 @@ export async function processImportBatch(
 
   // 完了通知メールを送信
   try {
-    const mailer = new MailerSendClient(
-      env.MAILERSEND_API_KEY,
-      env.MAILERSEND_FROM_EMAIL
+    const mailer = new MailgunClient(
+      env.MAILGUN_API_KEY,
+      env.MAILGUN_DOMAIN,
+      env.MAILGUN_FROM_EMAIL
     );
     await mailer.sendImportCompleteEmail({
       to: { email: userEmail },

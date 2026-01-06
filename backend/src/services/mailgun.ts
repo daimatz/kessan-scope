@@ -1,6 +1,6 @@
-// MailerSend API Client
+// Mailgun API Client
 
-const MAILERSEND_API_BASE = 'https://api.mailersend.com/v1';
+const MAILGUN_API_BASE = 'https://api.mailgun.net/v3';
 
 export interface EmailRecipient {
   email: string;
@@ -14,39 +14,47 @@ export interface SendEmailOptions {
   text?: string;
 }
 
-export class MailerSendClient {
+export class MailgunClient {
   private apiKey: string;
+  private domain: string;
   private fromEmail: string;
   private fromName: string;
 
-  constructor(apiKey: string, fromEmail: string, fromName: string = 'Kessan Scope') {
+  constructor(apiKey: string, domain: string, fromEmail: string, fromName: string = 'Kessan Scope') {
     this.apiKey = apiKey;
+    this.domain = domain;
     this.fromEmail = fromEmail;
     this.fromName = fromName;
   }
 
   async sendEmail(options: SendEmailOptions): Promise<void> {
-    const response = await fetch(`${MAILERSEND_API_BASE}/email`, {
+    const formData = new FormData();
+    formData.append('from', `${this.fromName} <${this.fromEmail}>`);
+
+    for (const recipient of options.to) {
+      const to = recipient.name
+        ? `${recipient.name} <${recipient.email}>`
+        : recipient.email;
+      formData.append('to', to);
+    }
+
+    formData.append('subject', options.subject);
+    formData.append('html', options.html);
+    if (options.text) {
+      formData.append('text', options.text);
+    }
+
+    const response = await fetch(`${MAILGUN_API_BASE}/${this.domain}/messages`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${this.apiKey}`,
-        'Content-Type': 'application/json',
+        'Authorization': `Basic ${btoa(`api:${this.apiKey}`)}`,
       },
-      body: JSON.stringify({
-        from: {
-          email: this.fromEmail,
-          name: this.fromName,
-        },
-        to: options.to,
-        subject: options.subject,
-        html: options.html,
-        text: options.text,
-      }),
+      body: formData,
     });
 
     if (!response.ok) {
       const error = await response.text();
-      throw new Error(`MailerSend error: ${response.status} - ${error}`);
+      throw new Error(`Mailgun error: ${response.status} - ${error}`);
     }
   }
 
@@ -62,11 +70,11 @@ export class MailerSendClient {
     detailUrl: string;
   }): Promise<void> {
     const quarterName = `${options.fiscalYear}年 Q${options.fiscalQuarter}`;
-    
+
     const highlightsHtml = options.highlights
       .map(h => `<li style="color: #16a34a;">✅ ${h}</li>`)
       .join('');
-    
+
     const lowlightsHtml = options.lowlights
       .map(l => `<li style="color: #dc2626;">⚠️ ${l}</li>`)
       .join('');

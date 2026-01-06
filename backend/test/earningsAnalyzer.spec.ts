@@ -23,9 +23,9 @@ vi.mock('../src/services/pdfStorage', () => ({
   getPdfFromR2: vi.fn().mockResolvedValue(new ArrayBuffer(1000)),
 }));
 
-// mailersend のモック
-vi.mock('../src/services/mailersend', () => ({
-  MailerSendClient: vi.fn().mockImplementation(() => ({
+// mailgun のモック
+vi.mock('../src/services/mailgun', () => ({
+  MailgunClient: vi.fn().mockImplementation(() => ({
     sendEarningsNotification: vi.fn().mockResolvedValue(undefined),
   })),
 }));
@@ -40,8 +40,9 @@ function createMockEnv() {
     PDF_BUCKET: {},
     ANTHROPIC_API_KEY: 'test-key',
     OPENAI_API_KEY: 'test-key',
-    MAILERSEND_API_KEY: 'test-key',
-    MAILERSEND_FROM_EMAIL: 'test@example.com',
+    MAILGUN_API_KEY: 'test-key',
+    MAILGUN_DOMAIN: 'mg.example.com',
+    MAILGUN_FROM_EMAIL: 'test@example.com',
     FRONTEND_URL: 'https://example.com',
   } as unknown as import('../src/types').Env;
 }

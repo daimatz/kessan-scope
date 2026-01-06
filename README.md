@@ -317,8 +317,9 @@ OPENAI_API_KEY=sk-proj-xxx
 GOOGLE_CLIENT_ID=xxx
 GOOGLE_CLIENT_SECRET=xxx
 JWT_SECRET=local-secret
-MAILERSEND_API_KEY=xxx
-MAILERSEND_FROM_EMAIL=noreply@example.com
+MAILGUN_API_KEY=xxx
+MAILGUN_DOMAIN=mg.example.com
+MAILGUN_FROM_EMAIL=noreply@example.com
 ```
 
 本番用は `--env=production` で設定：
@@ -374,8 +375,9 @@ wrangler d1 migrations apply kessan-scope-db --remote
 
 ```bash
 wrangler secret put ANTHROPIC_API_KEY --env=production
-wrangler secret put MAILERSEND_API_KEY --env=production
-wrangler secret put MAILERSEND_FROM_EMAIL --env=production
+wrangler secret put MAILGUN_API_KEY --env=production
+wrangler secret put MAILGUN_DOMAIN --env=production
+wrangler secret put MAILGUN_FROM_EMAIL --env=production
 wrangler secret put GOOGLE_CLIENT_ID --env=production
 wrangler secret put GOOGLE_CLIENT_SECRET --env=production
 wrangler secret put JWT_SECRET --env=production

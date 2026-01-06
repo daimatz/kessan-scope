@@ -117,8 +117,9 @@ function createMockEnv(watchlistStocks: string[] = []) {
     },
     PDF_BUCKET: {},
     OPENAI_API_KEY: 'test-key',
-    MAILERSEND_API_KEY: 'test-key',
-    MAILERSEND_FROM_EMAIL: 'test@example.com',
+    MAILGUN_API_KEY: 'test-key',
+    MAILGUN_DOMAIN: 'mg.example.com',
+    MAILGUN_FROM_EMAIL: 'test@example.com',
     FRONTEND_URL: 'https://example.com',
   } as unknown as import('../src/types').Env;
 }

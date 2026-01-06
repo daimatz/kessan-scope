@@ -13,8 +13,9 @@ declare namespace Cloudflare {
 		JWT_SECRET: string;
 		ANTHROPIC_API_KEY: string;
 		OPENAI_API_KEY: string;
-		MAILERSEND_API_KEY: string;
-		MAILERSEND_FROM_EMAIL: string;
+		MAILGUN_API_KEY: string;
+		MAILGUN_DOMAIN: string;
+		MAILGUN_FROM_EMAIL: string;
 		PDF_BUCKET: R2Bucket;
 		DB: D1Database;
 		IMPORT_QUEUE: Queue;

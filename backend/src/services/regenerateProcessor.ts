@@ -2,7 +2,7 @@
 
 import { getWatchlistItemById, getUserById } from '../db/queries';
 import { regenerateCustomAnalysis } from './earningsAnalyzer';
-import { MailerSendClient } from './mailersend';
+import { MailgunClient } from './mailgun';
 import type { Env, RegenerateQueueMessage } from '../types';
 
 export async function processRegenerateBatch(
@@ -34,9 +34,10 @@ export async function processRegenerateBatch(
 
   // 完了通知メールを送信
   try {
-    const mailer = new MailerSendClient(
-      env.MAILERSEND_API_KEY,
-      env.MAILERSEND_FROM_EMAIL
+    const mailer = new MailgunClient(
+      env.MAILGUN_API_KEY,
+      env.MAILGUN_DOMAIN,
+      env.MAILGUN_FROM_EMAIL
     );
     await mailer.sendRegenerateCompleteEmail({
       to: { email: userEmail },

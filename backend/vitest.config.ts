@@ -8,7 +8,7 @@ export default defineWorkersConfig(async () => {
   return {
     test: {
       setupFiles: ['./test/apply-migrations.ts'],
-      exclude: ['test/documentClassifier.spec.ts', 'test/newReleasesChecker.spec.ts', 'test/earningsAnalyzer.spec.ts', 'test/mailersend.spec.ts', 'node_modules/**'],
+      exclude: ['test/documentClassifier.spec.ts', 'test/newReleasesChecker.spec.ts', 'test/earningsAnalyzer.spec.ts', 'test/mailgun.spec.ts', 'node_modules/**'],
       poolOptions: {
         workers: {
           wrangler: { configPath: './wrangler.toml' },

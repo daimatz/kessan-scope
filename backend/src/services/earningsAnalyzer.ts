@@ -20,7 +20,7 @@ import {
   getUsersToNotifyForRelease,
   markUserReleaseNotified,
 } from '../db/queries';
-import { MailerSendClient } from './mailersend';
+import { MailgunClient } from './mailgun';
 import {
   PARALLEL_LIMIT,
   MAX_PDF_PAGES,
@@ -264,9 +264,10 @@ export async function sendNewReleaseNotifications(
 
   console.log(`Sending notifications to ${usersToNotify.length} users for release ${release.id}...`);
 
-  const mailer = new MailerSendClient(
-    env.MAILERSEND_API_KEY,
-    env.MAILERSEND_FROM_EMAIL
+  const mailer = new MailgunClient(
+    env.MAILGUN_API_KEY,
+    env.MAILGUN_DOMAIN,
+    env.MAILGUN_FROM_EMAIL
   );
 
   const quarterName = release.fiscal_quarter

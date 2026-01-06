@@ -1,16 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { MailerSendClient } from '../src/services/mailersend';
+import { MailgunClient } from '../src/services/mailgun';
 
 // グローバル fetch のモック
 const mockFetch = vi.fn();
 vi.stubGlobal('fetch', mockFetch);
 
-describe('MailerSendClient', () => {
-  let client: MailerSendClient;
+describe('MailgunClient', () => {
+  let client: MailgunClient;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    client = new MailerSendClient('test-api-key', 'test@example.com');
+    client = new MailgunClient('test-api-key', 'mg.example.com', 'test@example.com');
     mockFetch.mockResolvedValue({
       ok: true,
       text: () => Promise.resolve(''),
@@ -26,18 +26,17 @@ describe('MailerSendClient', () => {
       });
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://api.mailersend.com/v1/email',
+        'https://api.mailgun.net/v3/mg.example.com/messages',
         expect.objectContaining({
           method: 'POST',
           headers: {
-            'Authorization': 'Bearer test-api-key',
-            'Content-Type': 'application/json',
+            'Authorization': `Basic ${btoa('api:test-api-key')}`,
           },
         })
       );
     });
 
-    it('正しいリクエストボディを送信する', async () => {
+    it('FormData で正しいリクエストボディを送信する', async () => {
       await client.sendEmail({
         to: [{ email: 'recipient@example.com', name: 'Test User' }],
         subject: 'Test Subject',
@@ -46,18 +45,31 @@ describe('MailerSendClient', () => {
       });
 
       const callArgs = mockFetch.mock.calls[0];
-      const body = JSON.parse(callArgs[1].body);
+      const body = callArgs[1].body as FormData;
 
-      expect(body).toEqual({
-        from: {
-          email: 'test@example.com',
-          name: 'Kessan Scope',
-        },
-        to: [{ email: 'recipient@example.com', name: 'Test User' }],
+      expect(body.get('from')).toBe('Kessan Scope <test@example.com>');
+      expect(body.get('to')).toBe('Test User <recipient@example.com>');
+      expect(body.get('subject')).toBe('Test Subject');
+      expect(body.get('html')).toBe('<p>Test Body</p>');
+      expect(body.get('text')).toBe('Test Body');
+    });
+
+    it('複数の宛先を送信できる', async () => {
+      await client.sendEmail({
+        to: [
+          { email: 'user1@example.com', name: 'User 1' },
+          { email: 'user2@example.com' },
+        ],
         subject: 'Test Subject',
         html: '<p>Test Body</p>',
-        text: 'Test Body',
       });
+
+      const callArgs = mockFetch.mock.calls[0];
+      const body = callArgs[1].body as FormData;
+
+      const toValues = body.getAll('to');
+      expect(toValues).toContain('User 1 <user1@example.com>');
+      expect(toValues).toContain('user2@example.com');
     });
 
     it('API エラー時に例外をスローする', async () => {
@@ -73,7 +85,7 @@ describe('MailerSendClient', () => {
           subject: 'Test',
           html: '<p>Test</p>',
         })
-      ).rejects.toThrow('MailerSend error: 401 - Unauthorized');
+      ).rejects.toThrow('Mailgun error: 401 - Unauthorized');
     });
   });
 
@@ -93,13 +105,13 @@ describe('MailerSendClient', () => {
       expect(mockFetch).toHaveBeenCalled();
 
       const callArgs = mockFetch.mock.calls[0];
-      const body = JSON.parse(callArgs[1].body);
+      const body = callArgs[1].body as FormData;
 
-      expect(body.subject).toBe('[決算通知] トヨタ自動車 (7203) 2025年 Q2');
-      expect(body.to).toEqual([{ email: 'user@example.com', name: 'User' }]);
-      expect(body.html).toContain('売上高が過去最高');
-      expect(body.html).toContain('原材料コスト上昇');
-      expect(body.html).toContain('https://example.com/detail');
+      expect(body.get('subject')).toBe('[決算通知] トヨタ自動車 (7203) 2025年 Q2');
+      expect(body.get('to')).toBe('User <user@example.com>');
+      expect(body.get('html')).toContain('売上高が過去最高');
+      expect(body.get('html')).toContain('原材料コスト上昇');
+      expect(body.get('html')).toContain('https://example.com/detail');
     });
 
     it('ハイライト・ローライトが空でも送信できる', async () => {
@@ -117,9 +129,9 @@ describe('MailerSendClient', () => {
       expect(mockFetch).toHaveBeenCalled();
 
       const callArgs = mockFetch.mock.calls[0];
-      const body = JSON.parse(callArgs[1].body);
+      const body = callArgs[1].body as FormData;
 
-      expect(body.html).toContain('情報なし');
+      expect(body.get('html')).toContain('情報なし');
     });
   });
 
@@ -137,12 +149,12 @@ describe('MailerSendClient', () => {
       expect(mockFetch).toHaveBeenCalled();
 
       const callArgs = mockFetch.mock.calls[0];
-      const body = JSON.parse(callArgs[1].body);
+      const body = callArgs[1].body as FormData;
 
-      expect(body.subject).toBe('[Kessan Scope] トヨタ自動車 (7203) のインポートが完了しました');
-      expect(body.html).toContain('10');
-      expect(body.html).toContain('2');
-      expect(body.html).toContain('https://example.com/dashboard');
+      expect(body.get('subject')).toBe('[Kessan Scope] トヨタ自動車 (7203) のインポートが完了しました');
+      expect(body.get('html')).toContain('10');
+      expect(body.get('html')).toContain('2');
+      expect(body.get('html')).toContain('https://example.com/dashboard');
     });
 
     it('stockName がない場合は stockCode のみ表示する', async () => {
@@ -156,9 +168,9 @@ describe('MailerSendClient', () => {
       });
 
       const callArgs = mockFetch.mock.calls[0];
-      const body = JSON.parse(callArgs[1].body);
+      const body = callArgs[1].body as FormData;
 
-      expect(body.subject).toBe('[Kessan Scope] 7203 のインポートが完了しました');
+      expect(body.get('subject')).toBe('[Kessan Scope] 7203 のインポートが完了しました');
     });
   });
 
@@ -178,19 +190,19 @@ describe('MailerSendClient', () => {
       expect(mockFetch).toHaveBeenCalled();
 
       const callArgs = mockFetch.mock.calls[0];
-      const body = JSON.parse(callArgs[1].body);
+      const body = callArgs[1].body as FormData;
 
-      expect(body.subject).toBe('[Kessan Scope] トヨタ自動車 (7203) の再分析が完了しました');
-      expect(body.html).toContain('5'); // regenerated
-      expect(body.html).toContain('3'); // cached
-      expect(body.html).toContain('10'); // total
-      expect(body.html).toContain('2'); // skipped
+      expect(body.get('subject')).toBe('[Kessan Scope] トヨタ自動車 (7203) の再分析が完了しました');
+      expect(body.get('html')).toContain('5'); // regenerated
+      expect(body.get('html')).toContain('3'); // cached
+      expect(body.get('html')).toContain('10'); // total
+      expect(body.get('html')).toContain('2'); // skipped
     });
   });
 
   describe('カスタム fromName', () => {
     it('カスタム fromName を設定できる', async () => {
-      const customClient = new MailerSendClient('test-api-key', 'test@example.com', 'Custom Name');
+      const customClient = new MailgunClient('test-api-key', 'mg.example.com', 'test@example.com', 'Custom Name');
 
       await customClient.sendEmail({
         to: [{ email: 'recipient@example.com' }],
@@ -199,9 +211,9 @@ describe('MailerSendClient', () => {
       });
 
       const callArgs = mockFetch.mock.calls[0];
-      const body = JSON.parse(callArgs[1].body);
+      const body = callArgs[1].body as FormData;
 
-      expect(body.from.name).toBe('Custom Name');
+      expect(body.get('from')).toBe('Custom Name <test@example.com>');
     });
   });
 });
