@@ -40,14 +40,21 @@ export async function enqueueHistoricalImport(
   console.log(`Enqueued historical import for ${stockCode}`);
 }
 
+// processDocument の結果
+// - status: 'imported' = ユーザーにとってデータが利用可能（新規作成 or 既存）
+// - status: 'skipped' = 対象外（LLM判定、PDF取得失敗）
+type ProcessDocumentResult =
+  | { status: 'imported'; newlyCreated: true; hash: string; releaseId: string; isNewRelease: boolean }
+  | { status: 'imported'; newlyCreated: false }
+  | { status: 'skipped' };
+
 // 1ドキュメントを処理（LLM分類済み）
-// 戻り値: { imported, hash, releaseId } - releaseId は後で分析用
 async function processDocument(
   env: Env,
   stockCode: string,
   doc: ClassifiedDocument,
   existingHashes: Set<string>
-): Promise<{ imported: boolean; hash?: string; releaseId?: string; isNewRelease?: boolean }> {
+): Promise<ProcessDocumentResult> {
   const { classification } = doc;
   const fiscalYear = classification.fiscal_year;
   const fiscalQuarter = classification.fiscal_quarter ?? 0; // null は 0 に変換
@@ -55,12 +62,12 @@ async function processDocument(
 
   if (!fiscalYear || !documentType) {
     console.log(`Skipping (LLM could not parse or unsupported type): ${doc.title}`);
-    return { imported: false };
+    return { status: 'skipped' };
   }
 
   try {
     // PDF を取得して R2 に保存（URL・ハッシュで重複チェック）
-    const storedPdf = await fetchAndStorePdf(
+    const fetchResult = await fetchAndStorePdf(
       env.PDF_BUCKET,
       doc.pdfUrl,
       stockCode,
@@ -68,9 +75,17 @@ async function processDocument(
       (url) => checkUrlExists(env.DB, url)
     );
 
-    if (!storedPdf) {
-      return { imported: false };
+    // 取得失敗 → スキップ
+    if (fetchResult.type === 'failed') {
+      return { status: 'skipped' };
     }
+
+    // 既存データ → インポート済み扱い（ユーザーにとってはデータが利用可能）
+    if (fetchResult.type === 'existing') {
+      return { status: 'imported', newlyCreated: false };
+    }
+
+    const storedPdf = fetchResult.pdf;
 
     // EarningsRelease を取得または作成
     const releaseType = determineReleaseType(documentType);
@@ -86,28 +101,40 @@ async function processDocument(
     const isNewRelease = existingDocCount === 0;
 
     // Earnings レコードを作成（release_id と document_type 付き）
-    await createEarningsWithRelease(env.DB, {
-      stock_code: stockCode,
-      fiscal_year: fiscalYear,
-      fiscal_quarter: fiscalQuarter,
-      announcement_date: doc.pubdate,
-      content_hash: storedPdf.contentHash,
-      r2_key: storedPdf.r2Key,
-      document_url: doc.pdfUrl,
-      document_title: doc.title,
-      file_size: storedPdf.fileSize,
-      release_id: release.id,
-      document_type: documentType,
-    });
+    try {
+      await createEarningsWithRelease(env.DB, {
+        stock_code: stockCode,
+        fiscal_year: fiscalYear,
+        fiscal_quarter: fiscalQuarter,
+        announcement_date: doc.pubdate,
+        content_hash: storedPdf.contentHash,
+        r2_key: storedPdf.r2Key,
+        document_url: doc.pdfUrl,
+        document_title: doc.title,
+        file_size: storedPdf.fileSize,
+        release_id: release.id,
+        document_type: documentType,
+      });
+    } catch (insertError) {
+      // content_hash の重複は並列処理の競合状態で期待される動作
+      // 他のユーザーが同じ会社の決算を同時にインポートした場合に発生する
+      const errorMessage = insertError instanceof Error ? insertError.message : String(insertError);
+      if (errorMessage.includes('UNIQUE constraint failed: earnings.content_hash')) {
+        console.log(`Content already imported (concurrent): ${doc.title}`);
+        // ユーザーにとってはデータが利用可能なので imported 扱い
+        return { status: 'imported', newlyCreated: false };
+      }
+      throw insertError;
+    }
 
     console.log(
       `Imported [${documentType}] from ${doc.source}: ${stockCode} ${fiscalYear}Q${fiscalQuarter} - ${doc.title} (confidence: ${classification.confidence.toFixed(2)}, release: ${release.id})`
     );
 
-    return { imported: true, hash: storedPdf.contentHash, releaseId: release.id, isNewRelease };
+    return { status: 'imported', newlyCreated: true, hash: storedPdf.contentHash, releaseId: release.id, isNewRelease };
   } catch (error) {
     console.error(`Failed to import from ${doc.source}:`, error);
-    return { imported: false };
+    return { status: 'skipped' };
   }
 }
 
@@ -144,19 +171,20 @@ export async function processImportBatch(
     )
   );
 
-  // 結果を集計し、新しいハッシュを追加
+  // 結果を集計
   for (const result of importResults) {
-    if (result.imported && result.hash) {
-      existingHashes.add(result.hash);
+    if (result.status === 'imported') {
       imported++;
 
-      // 分析対象のリリースを記録
-      if (result.releaseId) {
-        // isNewRelease が false（既存リリースに追加）の場合は再分析が必要
+      // 新規作成の場合のみ、ハッシュ追加と分析対象の記録
+      if (result.newlyCreated) {
+        existingHashes.add(result.hash);
+
+        // 分析対象のリリースを記録
         const currentIsNew = releasesToAnalyze.get(result.releaseId);
         if (currentIsNew === undefined) {
-          releasesToAnalyze.set(result.releaseId, result.isNewRelease ?? true);
-        } else if (currentIsNew && result.isNewRelease === false) {
+          releasesToAnalyze.set(result.releaseId, result.isNewRelease);
+        } else if (currentIsNew && !result.isNewRelease) {
           // 新規だったが後から追加ドキュメントが来た場合
           releasesToAnalyze.set(result.releaseId, false);
         }

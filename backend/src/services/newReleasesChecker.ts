@@ -95,7 +95,7 @@ export async function checkNewReleases(env: Env): Promise<{ checked: number; imp
 
     try {
       // PDF を取得して R2 に保存（重複チェック込み）
-      const storedPdf = await fetchAndStorePdf(
+      const fetchResult = await fetchAndStorePdf(
         env.PDF_BUCKET,
         doc.document_url,
         stockCode,
@@ -103,10 +103,12 @@ export async function checkNewReleases(env: Env): Promise<{ checked: number; imp
         (url) => checkUrlExists(env.DB, url)
       );
 
-      if (!storedPdf) {
+      // 取得失敗または既存 → スキップ
+      if (fetchResult.type !== 'stored') {
         continue;
       }
 
+      const storedPdf = fetchResult.pdf;
       const announcementDate = doc.pubdate.split(' ')[0];
 
       // EarningsRelease を取得または作成
@@ -123,19 +125,29 @@ export async function checkNewReleases(env: Env): Promise<{ checked: number; imp
       const isNewRelease = existingDocCount === 0;
 
       // Earnings レコードを作成（release_id と document_type 付き）
-      await createEarningsWithRelease(env.DB, {
-        stock_code: stockCode,
-        fiscal_year: fiscalYear,
-        fiscal_quarter: fiscalQuarter,
-        announcement_date: announcementDate,
-        content_hash: storedPdf.contentHash,
-        r2_key: storedPdf.r2Key,
-        document_url: doc.document_url,
-        document_title: doc.title,
-        file_size: storedPdf.fileSize,
-        release_id: release.id,
-        document_type: documentType,
-      });
+      try {
+        await createEarningsWithRelease(env.DB, {
+          stock_code: stockCode,
+          fiscal_year: fiscalYear,
+          fiscal_quarter: fiscalQuarter,
+          announcement_date: announcementDate,
+          content_hash: storedPdf.contentHash,
+          r2_key: storedPdf.r2Key,
+          document_url: doc.document_url,
+          document_title: doc.title,
+          file_size: storedPdf.fileSize,
+          release_id: release.id,
+          document_type: documentType,
+        });
+      } catch (insertError) {
+        // content_hash の重複は並列処理の競合状態で期待される動作
+        const errorMessage = insertError instanceof Error ? insertError.message : String(insertError);
+        if (errorMessage.includes('UNIQUE constraint failed: earnings.content_hash')) {
+          console.log(`Content already imported (concurrent): ${doc.title}`);
+          continue;
+        }
+        throw insertError;
+      }
 
       existingHashes.add(storedPdf.contentHash);
       imported++;

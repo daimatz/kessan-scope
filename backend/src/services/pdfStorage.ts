@@ -8,6 +8,12 @@ export interface StoredPdf {
   fileSize: number;     // ファイルサイズ（バイト）
 }
 
+// fetchAndStorePdf の結果
+export type FetchAndStoreResult =
+  | { type: 'stored'; pdf: StoredPdf }      // 新規保存
+  | { type: 'existing' }                     // 既に存在（URL or ハッシュ重複）
+  | { type: 'failed' };                      // 取得失敗
+
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
 
 // MD5 ハッシュを計算
@@ -96,17 +102,17 @@ export async function fetchAndStorePdf(
   stockCode: string,
   existingHashes: Set<string>,
   checkUrlFn: (url: string) => Promise<string | null>
-): Promise<StoredPdf | null> {
+): Promise<FetchAndStoreResult> {
   // URL で既存チェック（インデックス検索、O(log n)）
   const existingId = await checkUrlFn(pdfUrl);
   if (existingId) {
-    return null;  // 既に保存済み
+    return { type: 'existing' };
   }
 
   // PDF を取得
   const buffer = await fetchPdf(pdfUrl);
   if (!buffer) {
-    return null;  // 取得失敗
+    return { type: 'failed' };
   }
 
   // ハッシュを計算
@@ -115,9 +121,10 @@ export async function fetchAndStorePdf(
   // 既存のハッシュと比較（同内容・別URLのケース）
   if (existingHashes.has(contentHash)) {
     console.log(`Same content from different URL (hash: ${contentHash})`);
-    return null;
+    return { type: 'existing' };
   }
 
   // R2 に保存
-  return storePdf(bucket, buffer, stockCode);
+  const pdf = await storePdf(bucket, buffer, stockCode);
+  return { type: 'stored', pdf };
 }
