@@ -312,4 +312,89 @@ ${options.lowlights.map(l => `- ${l}`).join('\n')}
       text,
     });
   }
+
+  // 登録ありがとうメールを送信
+  async sendWelcomeEmail(options: {
+    to: EmailRecipient;
+    dashboardUrl: string;
+  }): Promise<void> {
+    const userName = options.to.name || 'ユーザー';
+
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { background: #1e40af; color: white; padding: 20px; border-radius: 8px 8px 0 0; }
+    .content { background: #f9fafb; padding: 20px; border: 1px solid #e5e7eb; }
+    .feature { margin-bottom: 15px; padding-left: 10px; border-left: 3px solid #1e40af; }
+    .feature-title { font-weight: bold; color: #1e40af; }
+    .button { display: inline-block; background: #1e40af; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin-top: 20px; }
+    .footer { text-align: center; padding: 20px; color: #6b7280; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1 style="margin: 0;">🎉 ご登録ありがとうございます</h1>
+      <p style="margin: 10px 0 0;">Kessan Scope へようこそ！</p>
+    </div>
+    <div class="content">
+      <p>${userName} さん、</p>
+      <p>Kessan Scope にご登録いただきありがとうございます。</p>
+      <p>Kessan Scope は、上場企業の決算資料をAIが自動分析し、投資判断に役立つインサイトを提供するサービスです。</p>
+
+      <h3 style="color: #1e40af; margin-top: 25px;">主な機能</h3>
+      <div class="feature">
+        <div class="feature-title">📊 決算資料の自動分析</div>
+        <p style="margin: 5px 0;">決算短信やIR資料をAIが分析し、ハイライト・ローライトを自動抽出</p>
+      </div>
+      <div class="feature">
+        <div class="feature-title">🔔 新着決算通知</div>
+        <p style="margin: 5px 0;">ウォッチリストに登録した銘柄の新着決算を自動でお知らせ</p>
+      </div>
+      <div class="feature">
+        <div class="feature-title">📈 カスタム分析</div>
+        <p style="margin: 5px 0;">独自の視点でAI分析をカスタマイズ可能</p>
+      </div>
+
+      <p style="margin-top: 25px;">さっそく銘柄を登録して、決算分析を始めましょう！</p>
+      <a href="${options.dashboardUrl}" class="button">ダッシュボードを開く →</a>
+    </div>
+    <div class="footer">
+      <p>Kessan Scope</p>
+      <p>ご不明な点がございましたら、お気軽にお問い合わせください。</p>
+    </div>
+  </div>
+</body>
+</html>
+`;
+
+    const text = `
+${userName} さん、
+
+Kessan Scope にご登録いただきありがとうございます。
+
+Kessan Scope は、上場企業の決算資料をAIが自動分析し、投資判断に役立つインサイトを提供するサービスです。
+
+主な機能:
+- 決算資料の自動分析: 決算短信やIR資料をAIが分析し、ハイライト・ローライトを自動抽出
+- 新着決算通知: ウォッチリストに登録した銘柄の新着決算を自動でお知らせ
+- カスタム分析: 独自の視点でAI分析をカスタマイズ可能
+
+さっそく銘柄を登録して、決算分析を始めましょう！
+
+ダッシュボード: ${options.dashboardUrl}
+`;
+
+    await this.sendEmail({
+      to: [options.to],
+      subject: '[Kessan Scope] ご登録ありがとうございます',
+      html,
+      text,
+    });
+  }
 }

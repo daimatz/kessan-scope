@@ -3,6 +3,7 @@ import { setCookie, getCookie, deleteCookie } from 'hono/cookie';
 import type { Env, GoogleUserInfo, JWTPayload } from '../types';
 import { getUserByGoogleId, createUser, getUserById, getUserByEmail, linkGoogleAccount } from '../db/queries';
 import { UserSchema } from '@kessan-scope/shared';
+import { MailgunClient } from '../services/mailgun';
 
 const auth = new Hono<{ Bindings: Env }>();
 
@@ -146,6 +147,22 @@ auth.get('/callback', async (c) => {
         email: googleUser.email,
         name: googleUser.name,
       });
+
+      // 登録ありがとうメールを送信
+      try {
+        const mailer = new MailgunClient(
+          c.env.MAILGUN_API_KEY,
+          c.env.MAILGUN_DOMAIN,
+          c.env.MAILGUN_FROM_EMAIL
+        );
+        await mailer.sendWelcomeEmail({
+          to: { email: user.email, name: user.name ?? undefined },
+          dashboardUrl: c.env.FRONTEND_URL,
+        });
+      } catch (error) {
+        // メール送信失敗は登録処理をブロックしない
+        console.error('Failed to send welcome email:', error);
+      }
     }
   }
   
