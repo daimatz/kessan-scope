@@ -55,8 +55,9 @@ export async function upsertValuation(
         id, stock_code, record_date, fiscal_year, fiscal_quarter,
         market_cap, revenue, operating_income, net_income, source
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(stock_code, record_date, fiscal_year, fiscal_quarter)
+      ON CONFLICT(stock_code, fiscal_year, fiscal_quarter)
       DO UPDATE SET
+        record_date = COALESCE(excluded.record_date, stock_valuation.record_date),
         market_cap = COALESCE(excluded.market_cap, stock_valuation.market_cap),
         revenue = COALESCE(excluded.revenue, stock_valuation.revenue),
         operating_income = COALESCE(excluded.operating_income, stock_valuation.operating_income),

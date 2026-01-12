@@ -2,10 +2,8 @@ import { Hono } from 'hono';
 import type { Env } from '../types';
 import { ValuationHistoryResponseSchema } from '@kessan-scope/shared';
 import { getWatchlistItemByUserAndStock } from '../db/queries';
-import {
-  getValuationsByStockCode,
-  syncValuationsFromReleases,
-} from '../db/valuationQueries';
+import { getValuationsByStockCode } from '../db/valuationQueries';
+import { syncAllMarketCapsForStock } from '../services/valuationSync';
 
 const valuation = new Hono<{ Bindings: Env; Variables: { userId: string } }>();
 
@@ -45,7 +43,7 @@ valuation.get('/:code', async (c) => {
   }));
 });
 
-// 決算データからバリュエーションを同期
+// バリュエーションデータを同期（決算データ + IRBANK時価総額）
 valuation.post('/:code/sync', async (c) => {
   const userId = c.get('userId');
   const code = c.req.param('code');
@@ -60,10 +58,13 @@ valuation.post('/:code/sync', async (c) => {
     return c.json({ error: 'この企業へのアクセス権がありません' }, 403);
   }
 
-  // 決算データからバリュエーションを同期
-  const count = await syncValuationsFromReleases(c.env.DB, code);
+  // 全リリースの時価総額を同期
+  const result = await syncAllMarketCapsForStock(c.env, code);
 
-  return c.json({ success: true, synced: count });
+  return c.json({
+    success: true,
+    synced: result,
+  });
 });
 
 export default valuation;

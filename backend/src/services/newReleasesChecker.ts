@@ -14,6 +14,7 @@ import {
 import { analyzeEarningsRelease, sendNewReleaseNotifications } from './earningsAnalyzer';
 import { fetchAndStorePdf } from './pdfStorage';
 import { classificationToDocumentType, determineReleaseType } from './documentUtils';
+import { syncMarketCapForRelease } from './valuationSync';
 import type { Env } from '../types';
 
 // 全ウォッチリストユーザーの銘柄をチェック
@@ -178,6 +179,8 @@ export async function checkNewReleases(env: Env): Promise<{ checked: number; imp
         const release = await getEarningsReleaseById(env.DB, releaseId);
         if (release) {
           await sendNewReleaseNotifications(env, release, result.summary);
+          // 時価総額を同期
+          await syncMarketCapForRelease(env, release);
         }
       }
     } catch (error) {
