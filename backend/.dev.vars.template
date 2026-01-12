@@ -1,0 +1,8 @@
+MAILGUN_API_KEY="op://kessan-scope-credentials/kessan-scope-local-mailgun-api-key/credential"
+MAILGUN_DOMAIN="op://kessan-scope-credentials/kessan-scope-local-mailgun-domain/credential"
+MAILGUN_FROM_EMAIL="op://kessan-scope-credentials/kessan-scope-local-mailgun-from-email/credential"
+GOOGLE_CLIENT_ID="op://kessan-scope-credentials/kessan-scope-local-google-client-id/credential"
+GOOGLE_CLIENT_SECRET="op://kessan-scope-credentials/kessan-scope-local-google-client-secret/credential"
+ANTHROPIC_API_KEY="op://kessan-scope-credentials/kessan-scope-local-anthropic-api-key/credential"
+OPENAI_API_KEY="op://kessan-scope-credentials/kessan-scope-local-openai-api-key/credential"
+JWT_SECRET="op://kessan-scope-credentials/kessan-scope-local-jwt-secret/credential"
