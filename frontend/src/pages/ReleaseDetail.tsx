@@ -14,6 +14,7 @@ export default function ReleaseDetail() {
   const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
   const [lastDocumentType, setLastDocumentType] = useState<string | null>(null);
   const [showPdf, setShowPdf] = useState(true); // デフォルトで表示
+  const [showValuation, setShowValuation] = useState(false); // デフォルトで折りたたみ
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
   // 'standard', 'current'（現在のカスタム分析）, または履歴のインデックス番号
@@ -305,15 +306,25 @@ export default function ReleaseDetail() {
             </section>
           )}
 
-          {/* バリュエーション推移グラフ */}
+          {/* バリュエーション推移グラフ（折りたたみ可能） */}
           {valuationData && valuationData.valuations.length > 0 && (
             <section className="section valuation-section">
-              <h2>バリュエーション推移</h2>
-              <ValuationChart
-                valuations={valuationData.valuations}
-                currentFiscalYear={release.fiscal_year}
-                currentFiscalQuarter={release.fiscal_quarter}
-              />
+              <div className="valuation-header">
+                <h2>バリュエーション推移</h2>
+                <button
+                  onClick={() => setShowValuation(!showValuation)}
+                  className={`toggle-btn ${showValuation ? 'active' : ''}`}
+                >
+                  {showValuation ? '閉じる' : '開く'}
+                </button>
+              </div>
+              {showValuation && (
+                <ValuationChart
+                  valuations={valuationData.valuations}
+                  currentFiscalYear={release.fiscal_year}
+                  currentFiscalQuarter={release.fiscal_quarter}
+                />
+              )}
             </section>
           )}
 
