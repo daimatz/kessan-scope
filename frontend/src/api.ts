@@ -16,6 +16,8 @@ import {
   type StockReleasesResponse,
   type ReleaseType,
   type DocumentType,
+  type StockValuation,
+  type ValuationHistoryResponse,
   parseCustomAnalysis,
   getDocumentTypeLabel,
   getReleaseTypeLabel,
@@ -38,6 +40,8 @@ export type {
   StockReleasesResponse,
   ReleaseType,
   DocumentType,
+  StockValuation,
+  ValuationHistoryResponse,
 };
 
 // 関数を re-export
@@ -216,5 +220,15 @@ export const usersAPI = {
     fetchAPI<{ success: boolean }>('/api/users/settings', {
       method: 'PATCH',
       body: JSON.stringify(data),
+    }),
+};
+
+// Valuation API
+export const valuationAPI = {
+  getHistory: (code: string) =>
+    fetchAPI<ValuationHistoryResponse>(`/api/valuation/${code}`),
+  sync: (code: string) =>
+    fetchAPI<{ success: boolean; synced: number }>(`/api/valuation/${code}/sync`, {
+      method: 'POST',
     }),
 };

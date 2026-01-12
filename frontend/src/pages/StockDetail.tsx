@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { earningsAPI, watchlistAPI, getDocumentTypeLabel } from '../api';
+import { earningsAPI, watchlistAPI, valuationAPI, getDocumentTypeLabel } from '../api';
+import ValuationChart from '../components/ValuationChart';
 
 export default function StockDetail() {
   const { code } = useParams<{ code: string }>();
@@ -16,6 +17,28 @@ export default function StockDetail() {
     queryFn: () => earningsAPI.getReleasesByStock(code!),
     enabled: !!code,
   });
+
+  // バリュエーションデータを取得
+  const { data: valuationData } = useQuery({
+    queryKey: ['valuation', code],
+    queryFn: () => valuationAPI.getHistory(code!),
+    enabled: !!code,
+  });
+
+  // バリュエーションデータの同期
+  const syncMutation = useMutation({
+    mutationFn: () => valuationAPI.sync(code!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['valuation', code] });
+    },
+  });
+
+  // 初回ロード時にバリュエーションデータを同期
+  useEffect(() => {
+    if (code && data && valuationData?.valuations.length === 0) {
+      syncMutation.mutate();
+    }
+  }, [code, data, valuationData?.valuations.length]);
 
   const updateMutation = useMutation({
     mutationFn: (newPrompt: string) =>
@@ -81,6 +104,27 @@ export default function StockDetail() {
           <button onClick={() => setMessage(null)} className="close-btn">×</button>
         </div>
       )}
+
+      {/* バリュエーション推移グラフ */}
+      <section className="section">
+        <div className="section-header">
+          <h2>バリュエーション推移</h2>
+          <button
+            onClick={() => syncMutation.mutate()}
+            className="sync-btn"
+            disabled={syncMutation.isPending}
+          >
+            {syncMutation.isPending ? '同期中...' : '同期'}
+          </button>
+        </div>
+        {valuationData && valuationData.valuations.length > 0 ? (
+          <ValuationChart valuations={valuationData.valuations} />
+        ) : (
+          <div className="empty-state">
+            {syncMutation.isPending ? 'データを同期中...' : 'バリュエーションデータがありません'}
+          </div>
+        )}
+      </section>
 
       <section className="section">
         <h2>カスタムプロンプト</h2>

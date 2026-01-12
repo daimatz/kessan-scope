@@ -220,3 +220,28 @@ export function parseCustomAnalysis(jsonString: string | null): CustomAnalysisSu
     };
   }
 }
+
+// ============================================
+// バリュエーション関連スキーマ
+// ============================================
+
+export const StockValuationSchema = z.object({
+  id: z.string(),
+  stock_code: z.string(),
+  record_date: z.string(),
+  fiscal_year: z.string().nullable(),
+  fiscal_quarter: z.number().nullable(),
+  market_cap: z.number().nullable(),
+  revenue: z.number().nullable(),
+  operating_income: z.number().nullable(),
+  net_income: z.number().nullable(),
+  source: z.string().nullable(),
+});
+export type StockValuation = z.infer<typeof StockValuationSchema>;
+
+export const ValuationHistoryResponseSchema = z.object({
+  stock_code: z.string(),
+  stock_name: z.string().nullable(),
+  valuations: z.array(StockValuationSchema),
+});
+export type ValuationHistoryResponse = z.infer<typeof ValuationHistoryResponseSchema>;

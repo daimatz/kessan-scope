@@ -2506,3 +2506,93 @@ input:focus, textarea:focus, select:focus {
     margin-top: 4px;
   }
 }
+
+/* ============================================
+   バリュエーショングラフ
+   ============================================ */
+
+.valuation-chart {
+  background: var(--gray-900);
+  border-radius: 8px;
+  padding: 16px;
+  margin-top: 12px;
+}
+
+.valuation-chart-empty {
+  background: var(--gray-100);
+  border-radius: 8px;
+  padding: 32px;
+  text-align: center;
+  color: var(--gray-500);
+}
+
+.valuation-tooltip {
+  background: rgba(17, 24, 39, 0.95);
+  border: 1px solid var(--gray-700);
+  border-radius: 6px;
+  padding: 10px 14px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.valuation-tooltip .tooltip-label {
+  color: #e5e7eb;
+  font-weight: 600;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--gray-700);
+  padding-bottom: 4px;
+}
+
+.valuation-tooltip p {
+  margin: 4px 0;
+  font-size: 13px;
+}
+
+.valuation-section h2 {
+  margin-bottom: 0;
+}
+
+/* セクションヘッダー（タイトル + ボタン） */
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.section-header h2 {
+  margin: 0;
+}
+
+.sync-btn {
+  background: var(--gray-200);
+  color: var(--gray-700);
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.sync-btn:hover:not(:disabled) {
+  background: var(--gray-300);
+}
+
+.sync-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Recharts カスタマイズ */
+.recharts-legend-item-text {
+  color: #e5e7eb !important;
+}
+
+.recharts-cartesian-axis-tick-value {
+  fill: #9ca3af;
+}
+
+.recharts-cartesian-grid-horizontal line,
+.recharts-cartesian-grid-vertical line {
+  stroke: #374151;
+}

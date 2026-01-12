@@ -4,7 +4,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkCjkFriendly from 'remark-cjk-friendly';
-import { earningsAPI, chatAPI, getDocumentTypeLabel, parseCustomAnalysis } from '../api';
+import { earningsAPI, chatAPI, valuationAPI, getDocumentTypeLabel, parseCustomAnalysis } from '../api';
+import ValuationChart from '../components/ValuationChart';
 
 export default function ReleaseDetail() {
   const { releaseId } = useParams<{ releaseId: string }>();
@@ -53,6 +54,13 @@ export default function ReleaseDetail() {
     queryKey: ['releaseChat', releaseId],
     queryFn: () => chatAPI.getReleaseMessages(releaseId!),
     enabled: !!releaseId,
+  });
+
+  // バリュエーションデータを取得
+  const { data: valuationData } = useQuery({
+    queryKey: ['valuation', data?.release.stock_code],
+    queryFn: () => valuationAPI.getHistory(data!.release.stock_code),
+    enabled: !!data?.release.stock_code,
   });
 
   // ドキュメントを選択（前のページと同じ種類があればそれを、なければ優先順位で選択）
@@ -294,6 +302,18 @@ export default function ReleaseDetail() {
                   />
                 </div>
               )}
+            </section>
+          )}
+
+          {/* バリュエーション推移グラフ */}
+          {valuationData && valuationData.valuations.length > 0 && (
+            <section className="section valuation-section">
+              <h2>バリュエーション推移</h2>
+              <ValuationChart
+                valuations={valuationData.valuations}
+                currentFiscalYear={release.fiscal_year}
+                currentFiscalQuarter={release.fiscal_quarter}
+              />
             </section>
           )}
 

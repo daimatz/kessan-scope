@@ -8,6 +8,7 @@ import earnings from './routes/earnings';
 import chat from './routes/chat';
 import users from './routes/users';
 import stocks from './routes/stocks';
+import valuation from './routes/valuation';
 import { updateStockList } from './services/stockUpdater';
 import { processImportBatch } from './services/historicalImport';
 import { checkNewReleases } from './services/newReleasesChecker';
@@ -76,6 +77,7 @@ app.route('/api/earnings', earnings);
 app.route('/api/chat', chat);
 app.route('/api/users', users);
 app.route('/api/stocks', stocks);
+app.route('/api/valuation', valuation);
 
 // 404ハンドラ
 app.notFound((c) => c.json({ error: 'Not found' }, 404));
