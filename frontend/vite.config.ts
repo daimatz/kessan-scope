@@ -19,6 +19,13 @@ export default defineConfig({
           ) {
             return "markdown";
           }
+          if (
+            id.includes("recharts") ||
+            id.includes("d3-") ||
+            id.includes("victory-vendor")
+          ) {
+            return "charts";
+          }
         },
       },
     },
