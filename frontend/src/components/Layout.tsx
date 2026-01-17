@@ -57,15 +57,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </li>
             ))}
           </ul>
-          <div className="slide-menu-footer">
-            <div className="menu-user-info">
-              <span className="user-email">{data?.user?.email}</span>
-            </div>
-            <button onClick={handleLogout} className="logout-btn">
-              ログアウト
-            </button>
-          </div>
         </nav>
+        <div className="slide-menu-footer">
+          <div className="menu-user-info">
+            <span className="user-email">{data?.user?.email}</span>
+          </div>
+          <button onClick={handleLogout} className="logout-btn">
+            ログアウト
+          </button>
+        </div>
       </div>
 
       {/* オーバーレイ */}

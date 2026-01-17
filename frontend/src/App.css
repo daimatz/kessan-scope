@@ -476,6 +476,7 @@ input:focus, textarea:focus, select:focus {
   left: 0;
   width: 280px;
   height: calc(100vh - 56px);
+  height: calc(100dvh - 56px); /* スマホのアドレスバー対応 */
   background: var(--gray-900);
   color: white;
   transform: translateX(-100%);
@@ -494,11 +495,12 @@ input:focus, textarea:focus, select:focus {
   display: flex;
   flex-direction: column;
   padding: 20px;
+  overflow-y: auto;
+  min-height: 0; /* flexbox内でのスクロール有効化 */
 }
 
 .slide-menu .nav-items {
   list-style: none;
-  flex: 1;
 }
 
 .slide-menu .nav-item {
@@ -528,8 +530,10 @@ input:focus, textarea:focus, select:focus {
 }
 
 .slide-menu-footer {
-  padding-top: 20px;
+  flex-shrink: 0;
+  padding: 20px;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--gray-900);
 }
 
 .menu-user-info {
